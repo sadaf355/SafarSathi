@@ -181,6 +181,13 @@ def test_get_risks(client, monkeypatch):
     assert body["score"]["weatherRisk"] == 63
 
 
+def test_poll_risk_once(client):
+    resp = client.post("/api/trips/trip-ladakh-2025/risk/poll-once")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert isinstance(body, list)
+
+
 def test_get_bookings(client):
     resp = client.get("/api/trips/trip-ladakh-2025/bookings")
     assert resp.status_code == 200

@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
+from apscheduler.schedulers.background import BackgroundScheduler
+
 from app.api.routes import assistant, auth, disruptions, health, recovery, trips
 from app.config import get_settings
 from app.core.middleware import RequestTimingMiddleware
@@ -13,11 +15,23 @@ from app.core.rate_limiting import limiter
 from app.database.base import Base
 from app.database.seed import seed_if_empty
 from app.database.session import SessionLocal, engine, resolved_url
+from app.services.risk_prediction_service import run_risk_prediction_cycle
 
 # Import models so they register on Base.metadata before create_all runs.
 from app import models  # noqa: F401
 
 logger = logging.getLogger("triprescue")
+
+
+def _scheduled_risk_prediction_job() -> None:
+    db = SessionLocal()
+    try:
+        notifications = run_risk_prediction_cycle(db)
+        logger.info("Risk prediction cycle completed: %d notification(s) produced", len(notifications))
+    except Exception as exc:
+        logger.exception("Error during scheduled risk prediction cycle: %s", exc)
+    finally:
+        db.close()
 
 
 @asynccontextmanager
@@ -41,7 +55,27 @@ async def lifespan(app: FastAPI):
         seed_if_empty(db)
     finally:
         db.close()
-    yield
+
+    scheduler = None
+    if settings.risk_prediction_enabled:
+        scheduler = BackgroundScheduler()
+        scheduler.add_job(
+            _scheduled_risk_prediction_job,
+            "interval",
+            minutes=settings.risk_prediction_interval_minutes,
+        )
+        scheduler.start()
+        logger.info(
+            "Risk prediction background scheduler started (interval: %d minutes)",
+            settings.risk_prediction_interval_minutes,
+        )
+
+    try:
+        yield
+    finally:
+        if scheduler is not None and scheduler.running:
+            scheduler.shutdown(wait=False)
+            logger.info("Risk prediction background scheduler shut down")
 
 
 app = FastAPI(title="TripRescue API", version="0.1.0", lifespan=lifespan)

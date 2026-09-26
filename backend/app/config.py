@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     db_pool_recycle_seconds: int = 300
     weather_request_timeout_seconds: float = 3.0
     weather_total_timeout_seconds: float = 4.0
+    risk_prediction_enabled: bool = True
+    risk_prediction_interval_minutes: int = 15
 
     @property
     def cors_origin_list(self) -> list[str]:

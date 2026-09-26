@@ -29,6 +29,7 @@ class DisruptionOut(CamelModel):
     refund_exposure: float
     cascade_steps: list[CascadeStepOut]
     detected_at: str
+    narrative: str | None = None
 
 
 class ImpactEntryOut(CamelModel):

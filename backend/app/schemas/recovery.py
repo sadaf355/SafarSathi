@@ -33,6 +33,7 @@ class RecoveryOptionOut(CamelModel):
     score_breakdown: ScoreBreakdownOut
     feasible: bool = True
     provider_reason: str | None = None
+    recovery_narrative: str | None = None
 
 
 class ApplyRecoveryRequest(CamelModel):
