@@ -78,7 +78,7 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
     const type = isWeather ? 'weather-disruption' : text.includes('cancel') ? 'flight-cancellation' : text.includes('miss') && text.includes('connection') ? 'missed-connection' : text.includes('hotel') ? 'hotel-conflict' : 'flight-delay';
     setSelected(type as DisruptionType['id']);
     if (DELAY_BASED_TYPES.has(type)) setDelayHours(Math.max(1, Math.min(6, Math.round(minutes / 60))));
-    setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${Math.round(minutes/60)}h` : 'Disruption detected'}` : `${type.replaceAll('-', ' ')} · ${Math.round(minutes/60)}h`, nodeId: node?.id });
+    setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${Math.round(minutes/60)}h` : 'Disruption detected'}` : `${type.split('-').join(' ')} · ${Math.round(minutes/60)}h`, nodeId: node?.id });
   };
 
   const handleTrigger = async () => {

@@ -26,7 +26,15 @@ export function SathiPage({ open = true, overlay = false, onClose }: SathiPagePr
   const send = async (text: string) => {
     if (!text.trim() || thinking) return;
     setMessages(m=>[...m,{id:`u-${Date.now()}`,role:'user',content:text,timestamp:now()}]); setInput(''); setThinking(true);
-    try { const answer=await api.askAssistant(tripId,text); setMessages(m=>[...m,{id:`a-${Date.now()}`,role:'assistant',content:answer.content,timestamp:now(),references:answer.references}]); }
+    try {
+      const answer = await api.askAssistant(tripId, text);
+      // Open confirm modal only if the proposed recovery exists in currently loaded options; otherwise do nothing defensively
+      if (answer.proposedRecoveryId) {
+        const proposed = recoveryOptions.find(o => o.id === answer.proposedRecoveryId);
+        if (proposed) setConfirm(proposed);
+      }
+      setMessages(m=>[...m,{id:`a-${Date.now()}`,role:'assistant',content:answer.content,timestamp:now(),references:answer.references}]);
+    }
     catch { setMessages(m=>[...m,{id:`e-${Date.now()}`,role:'assistant',content:'I can’t reach the travel intelligence service right now. Your current trip state is still available.',timestamp:now()}]); }
     finally { setThinking(false); }
   };
