@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from '@/store/AuthContext';
 import { ToastProvider, useToast } from '@/components/ui/ToastProvider';
 import { RouterProvider, useRouter } from '@/lib/router';
 import { LoginScreen } from '@/components/auth/LoginScreen';
+import { LandingPage } from '@/landing/LandingPage';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { ShellActionsProvider, useShellActions } from '@/components/layout/ShellActions';
@@ -20,11 +21,13 @@ import { TripDetailsPage } from '@/pages/TripDetailsPage';
 import { BriefcaseBusiness, WifiOff } from 'lucide-react';
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** Set by the landing page's "Watch Demo": play the guided demo once the app loads. */
+const AUTO_DEMO_KEY = 'safarsathi.autoDemo';
 
 function AppContent() {
   const { route, navigate } = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  const { triggerDisruption, applyRecoveryPlan, resetTrip, setDemoRunning, demoRunning, isBusy, recoveryOptions, error, reload, noTripFound } = useApp();
+  const { triggerDisruption, applyRecoveryPlan, resetTrip, setDemoRunning, demoRunning, isBusy, recoveryOptions, error, reload, noTripFound, trip, loading } = useApp();
   const { addToast } = useToast();
   const { openCreateTrip } = useShellActions();
   const demoCancelledRef = useRef(false);
@@ -58,6 +61,18 @@ function AppContent() {
       setDemoRunning(false);
     }
   }, [demoRunning, isBusy, resetTrip, triggerDisruption, applyRecoveryPlan, addToast, setDemoRunning, navigate]);
+
+  useEffect(() => {
+    if (loading || !trip.id) return;
+    let pending = false;
+    try {
+      pending = sessionStorage.getItem(AUTO_DEMO_KEY) === '1';
+      sessionStorage.removeItem(AUTO_DEMO_KEY);
+    } catch {
+      /* storage unavailable */
+    }
+    if (pending) runDemo();
+  }, [loading, trip.id, runDemo]);
 
   const handleReset = useCallback(async () => {
     demoCancelledRef.current = true;
@@ -107,11 +122,25 @@ function AppContent() {
 }
 
 function Gate() {
-  const { status, dataMode } = useAuth();
+  const { status, dataMode, continueOffline } = useAuth();
+  const [view, setView] = useState<'landing' | 'login'>(() => (window.location.hash === '#/login' ? 'login' : 'landing'));
+  const watchDemo = useCallback(async () => {
+    try {
+      sessionStorage.setItem(AUTO_DEMO_KEY, '1');
+    } catch {
+      /* storage unavailable - the demo still opens, just without autoplay */
+    }
+    window.location.hash = '/dashboard';
+    await continueOffline();
+  }, [continueOffline]);
   if (status === 'checking') {
     return <div className="flex h-screen items-center justify-center bg-canvas"><LogoMark className="h-12 w-12 animate-pulse-soft" /></div>;
   }
-  if (status === 'unauthenticated') return <LoginScreen />;
+  if (status === 'unauthenticated') {
+    return view === 'login'
+      ? <LoginScreen onBack={() => { setView('landing'); window.scrollTo(0, 0); }} />
+      : <LandingPage onGetStarted={() => { setView('login'); window.scrollTo(0, 0); }} onWatchDemo={watchDemo} />;
+  }
   return (
     // Keyed on the data source so switching between live and demo starts clean.
     <AppProvider key={dataMode}>

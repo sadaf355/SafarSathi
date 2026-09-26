@@ -18,6 +18,9 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   build: {
+    // The largest chunk is the landing hero's three.js scene, which is lazy-loaded
+    // after first paint (never preloaded), so it doesn't block the page.
+    chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
         manualChunks: {

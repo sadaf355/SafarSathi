@@ -382,6 +382,7 @@ npm run dev
 Frontend will be available at `http://localhost:5173`. Click **"Continue as Demo Traveler"** to access the dashboard with the seeded backend trips.
 
 ### 3. Safar Sathi frontend notes
+- **Landing page** (src/landing): shown to signed-out visitors. The hero is a lazy-loaded React Three Fiber scene (procedural low-poly models, no model downloads) that plays the Mumbai → Delhi → Agra disruption-and-recovery story; it pauses off-screen, shows a still frame under prefers-reduced-motion, and falls back to static art without WebGL (force with ?hero=static). **Get Started** opens sign-in; **Watch Demo** opens the offline demo and plays the guided recovery flow.
 - **Screens** (hash routes, so deep links work on static hosting): `#/dashboard`, `#/bookings`, `#/live`, `#/recovery`, `#/assistant`, `#/trip`, `#/claims`, `#/settings`.
 - **Offline demo**: "Explore offline demo" on the sign-in screen runs the full UI against an in-browser data source (`src/services/demoBackend.ts`) that mirrors the API contract, with a Mumbai → Delhi → Agra trip already mid-disruption. Live sessions always use the real backend.
 - **Destination imagery**: `src/lib/destinationImages.ts` is the single registry; `<DestinationImage destination="Agra" />` resolves city → alias/airport code → country → generic fallback. Photos are bundled in `public/images` (from Unsplash, used under the Unsplash License).

@@ -66,6 +66,11 @@
 .ss-map .leaflet-tooltip-top:before { border-top-color: #fff; }
 .ss-route-flow { animation: dashFlow 1.2s linear infinite; }
 @keyframes dashFlow { to { stroke-dashoffset: -20; } }
+/* ---- Landing hero ---- */
+.ss-float { animation: ssFloat 6s ease-in-out infinite; }
+.ss-glide { animation: ssGlide 9s ease-in-out infinite; }
+@keyframes ssFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes ssGlide { 0% { left: 0%; } 50% { left: calc(100% - 24px); } 100% { left: 0%; } }
 @keyframes pulseRing { 0% { transform: scale(0.8); opacity: .8; } 100% { transform: scale(2.4); opacity: 0; } }
 
 /* ---- Dependency graph (reactflow) ---- */

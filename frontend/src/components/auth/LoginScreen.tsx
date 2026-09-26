@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Loader2, Sparkles, WifiOff } from 'lucide-react';
+import { ArrowLeft, Loader2, Sparkles, WifiOff } from 'lucide-react';
 import { useAuth } from '@/store/AuthContext';
 import { Logo, ScriptTagline } from '@/components/brand/Logo';
 import { sceneImages } from '@/lib/destinationImages';
@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 type Mode = 'login' | 'register';
 
 /** Sign-in: backend account, the seeded demo traveler, or a fully offline demo. */
-export function LoginScreen() {
+export function LoginScreen({ onBack }: { onBack?: () => void }) {
   const { loginWithPassword, registerAccount, continueAsDemo, continueOffline, busy, error, offline, wakingServer } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
@@ -35,7 +35,7 @@ export function LoginScreen() {
 
       <div className="flex w-full items-center justify-center px-4 py-10 lg:w-[520px]">
         <div className="w-full max-w-sm">
-          <Logo className="mb-8" />
+          {onBack && <button type="button" onClick={onBack} className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-ink-muted hover:text-brand"><ArrowLeft className="h-4 w-4" /> Back to home</button>}`n          <Logo className="mb-8" />
           <h2 className="font-display text-2xl font-bold text-ink">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
           <p className="mt-1 text-sm text-ink-muted">Sign in to see your trips and live disruption updates.</p>
 
