@@ -16,6 +16,7 @@ interface MetricCardProps {
   className?: string;
 }
 
+<<<<<<< HEAD
 const iconTiles = {
   default: 'bg-canvas text-ink-muted',
   green: 'bg-gradient-to-br from-[#22C55E] to-[#16A34A] text-white shadow-card text-safar-safe',
@@ -23,6 +24,23 @@ const iconTiles = {
   red: 'bg-gradient-to-br from-[#FFE1E1] to-[#FFCACA] text-danger',
   cyan: 'bg-gradient-to-br from-[#E6EEFF] to-[#D3E1FF] text-brand',
 };
+=======
+export function MetricCard({ value, label, prefix = '', suffix = '', icon, accent = 'default', animate = true, className }: MetricCardProps) {
+  const accents = {
+    default: 'text-slate-900',
+    green: 'text-safar-safe',
+    amber: 'text-safar-risk',
+    red: 'text-safar-broken',
+    cyan: 'text-safar-blue',
+  };
+  const iconBadges = {
+    default: 'bg-slate-50 border-slate-300 text-slate-600',
+    green: 'bg-safar-safe/10 border-safar-safe/30 text-safar-safe',
+    amber: 'bg-safar-risk/10 border-safar-risk/30 text-safar-risk',
+    red: 'bg-safar-broken/10 border-safar-broken/30 text-safar-broken',
+    cyan: 'bg-safar-blue/10 border-safar-blue/30 text-safar-blue',
+  };
+>>>>>>> origin/shreya
 
 export function MetricCard({ value, label, prefix = '', suffix = '', icon, accent = 'default', animate = true, sub, onClick, className }: MetricCardProps) {
   const Wrapper = onClick ? 'button' : 'div';

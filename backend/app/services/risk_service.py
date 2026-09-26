@@ -135,11 +135,10 @@ def get_risk_analysis(db: Session, trip_id: str) -> RiskAnalysisOut:
         if snap.result.risk_percent < 12:
             continue
         node = node_by_id[snap.node_id]
-        severity = "high" if snap.result.risk_percent >= 60 else "medium" if snap.result.risk_percent >= 30 else "low"
         alerts.append(
             AlertOut(
                 id=f"alert-{node.id}",
-                severity=severity,
+                severity=snap.result.risk_level,
                 title=snap.result.reason,
                 reason=", ".join(snap.result.contributing_factors),
                 impact=f"{node.dependency_count} downstream booking(s) could be affected."

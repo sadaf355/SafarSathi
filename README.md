@@ -149,10 +149,12 @@ The refund engine evaluates:
 - Total recovered value vs. disruption loss.
 
 ## 16. AI Assistant
-An integrated AI Copilot provides contextual explanations and recommendations:
-- Grounded directly in live trip, disruption, and recovery state.
-- Capable of answering questions like "Why did my transfer break?" and "What is the fastest recovery?".
-- Includes a robust deterministic rule-based fallback when external LLM API keys are not configured.
+An integrated AI Copilot provides contextual explanations and recommendations, backed by real Anthropic Claude calls with deterministic fallbacks so the product is never non-functional without an API key:
+- **Q&A Assistant**: grounded directly in live trip, disruption, and recovery state. Capable of answering questions like "Why did my transfer break?" and "What is the fastest recovery?". Falls back to a keyword-based deterministic responder when `ANTHROPIC_API_KEY` is unset or the call fails.
+- **Generative recovery narratives**: each ranked recovery option gets a plain-language, 2-3 sentence explanation grounded in its real cost/time/preservation/score data, shown in a "✦ Why this option" panel in the Recovery Center. Falls back to no panel (never a broken or stale placeholder) without a key.
+- **Generative disruption narratives**: the "✦ SAFARSATHI INSIGHT" summary on the Impact Analysis panel is LLM-generated from the real disruption and cascade data when a key is configured, falling back to the original templated sentence otherwise.
+- **Natural-language / voice disruption reporting**: the "Smart reporting" box on the disruption modal extracts a structured `{type, delayMinutes, nodeId}` report from free-text (typed or spoken via the browser's Web Speech API) using an LLM call with strict JSON-only, "never invent a fact not in the data" discipline. Falls back to a deterministic regex/keyword extractor (ported 1:1 from the original client-side logic) when the LLM is unavailable - the traveler always sees the same "I understood: ..." confirmation card before anything is submitted.
+- All four AI paths share the same contract: check for `ANTHROPIC_API_KEY` first, wrap the call in a broad `try/except`, log a warning on failure, and never raise - a bad key, outage, or malformed response degrades gracefully instead of breaking the flow.
 
 ## 17. Activity Log
 Maintains an immutable timeline of all itinerary events:
@@ -238,8 +240,9 @@ The codebase is thoroughly verified with comprehensive test suites:
 
 | Suite | Status | Details |
 | :--- | :--- | :--- |
-| **Backend Unit & Engine Tests** | **163 test functions present** | Current source inventory; run the backend pytest suite in an environment with all requirements installed |
-| **Frontend Unit & Component Tests** | **105 test/it call sites present** | Current source inventory; run `npm test`, typecheck, lint and build after installing dependencies |
+| **Backend Unit & Engine Tests** | **175 tests, 171 passed, 4 skipped, 0 failed** | `pytest app/tests/ -q`, verified against a full run |
+| **Frontend Unit & Component Tests** | **105 tests, 105 passed, 0 failed** | `npx vitest run`, verified against a full run |
+| **Frontend type check / lint / build** | **Passing** | `npm run typecheck`, `npm run lint`, `npm run build` all clean |
 | **Browser E2E Flow** | **Not shipped** | No Playwright/Cypress suite is present in this archive |
 | **Python syntax** | **Verified** | Backend source compiles with `py_compile` |
 | **Archive hygiene** | **Verified** | No `node_modules`, `.pyc`, or `__pycache__` directories are shipped |

@@ -10,6 +10,7 @@ import { TopBar } from '@/components/layout/TopBar';
 import { ShellActionsProvider, useShellActions } from '@/components/layout/ShellActions';
 import { LogoMark } from '@/components/brand/Logo';
 import { NetworkStatusBanner } from '@/components/ui/NetworkStatusBanner';
+<<<<<<< HEAD
 import { DashboardPage } from '@/pages/DashboardPage';
 import { BookingsPage } from '@/pages/BookingsPage';
 import { LiveUpdatesPage } from '@/pages/LiveUpdatesPage';
@@ -20,15 +21,27 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { TripDetailsPage } from '@/pages/TripDetailsPage';
 import { DigitalTwinPage } from '@/pages/DigitalTwinPage';
 import { BriefcaseBusiness, WifiOff } from 'lucide-react';
+=======
+import { CreateTripModal } from '@/components/trip/CreateTripModal';
+import { LifeBuoy, WifiOff, Briefcase } from 'lucide-react';
+>>>>>>> origin/shreya
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 /** Set by the landing page's "Watch Demo": play the guided demo once the app loads. */
 const AUTO_DEMO_KEY = 'safarsathi.autoDemo';
 
 function AppContent() {
+<<<<<<< HEAD
   const { route, navigate } = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const { triggerDisruption, applyRecoveryPlan, resetTrip, setDemoRunning, demoRunning, isBusy, recoveryOptions, error, reload, noTripFound, trip, loading } = useApp();
+=======
+  const [page, setPage] = useState<AppPage>('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => typeof window !== 'undefined' && window.matchMedia(NARROW_VIEWPORT_QUERY).matches);
+  const [sathiOverlay, setSathiOverlay] = useState(false);
+  const { triggerDisruption, applyRecoveryPlan, resetTrip, setDemoRunning, demoRunning, isBusy, recoveryOptions, error, reload, noTripFound, trip, loading } = useApp();
+  const [createTripOpen, setCreateTripOpen] = useState(false);
+>>>>>>> origin/shreya
   const { addToast } = useToast();
   const { openCreateTrip } = useShellActions();
   const demoCancelledRef = useRef(false);
@@ -37,10 +50,16 @@ function AppContent() {
 
   /** Guided demo: reset → disruption → recovery options → apply & re-validate. */
   const runDemo = useCallback(async () => {
+<<<<<<< HEAD
     if (demoRunning || isBusy) return;
     demoCancelledRef.current = false;
     setDemoRunning(true);
     addToast('info', 'Guided demo started', 'Watch Safar Sathi move from disruption to recovery.');
+=======
+    if (demoRunning || isBusy || !trip.resettable) return;
+    demoCancelledRef.current = false; setDemoRunning(true);
+    addToast('info', 'Demo Mode Started', 'Watch SafarSathi move from disruption to recovery.');
+>>>>>>> origin/shreya
     try {
       await resetTrip();
       navigate('dashboard');
@@ -52,6 +71,7 @@ function AppContent() {
       navigate('recovery');
       await wait(2200);
       const top = recoveryOptionsRef.current.filter((o) => o.feasible !== false).sort((a, b) => b.score - a.score)[0];
+<<<<<<< HEAD
       if (top && !demoCancelledRef.current) {
         await applyRecoveryPlan(top.id);
         addToast('success', 'Journey recovered', `${top.bookingsPreserved}/${top.totalBookings} bookings preserved and re-validated.`);
@@ -62,6 +82,12 @@ function AppContent() {
       setDemoRunning(false);
     }
   }, [demoRunning, isBusy, resetTrip, triggerDisruption, applyRecoveryPlan, addToast, setDemoRunning, navigate]);
+=======
+      if (top) { setPage('recovery'); await wait(1800); if (!demoCancelledRef.current) { await applyRecoveryPlan(top.id); addToast('success', 'Journey Recovered', `${top.bookingsPreserved}/${top.totalBookings} commitments preserved.`); } }
+    } catch { addToast('error', 'Demo Interrupted', 'Check the backend connection and try again.'); }
+    finally { setDemoRunning(false); }
+  }, [demoRunning, isBusy, trip.resettable, resetTrip, triggerDisruption, applyRecoveryPlan, addToast, setDemoRunning]);
+>>>>>>> origin/shreya
 
   useEffect(() => {
     if (loading || !trip.id) return;
@@ -82,6 +108,7 @@ function AppContent() {
   }, [resetTrip, addToast]);
 
   return (
+<<<<<<< HEAD
     <div className="flex h-screen overflow-hidden">
       <button onClick={() => document.getElementById('main-scroll')?.focus()} className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow-lift">Skip to content</button>
       <Sidebar mobileOpen={menuOpen} onCloseMobile={() => setMenuOpen(false)} />
@@ -118,6 +145,35 @@ function AppContent() {
           )}
         </div>
       </main>
+=======
+    <div className="flex h-screen overflow-hidden bg-slate-50">
+      <Sidebar current={page} onNavigate={navigate} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((v) => !v)} />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <TopBar current={page} onOpenAI={() => setSathiOverlay(true)} onRunDemo={runDemo} onReset={handleReset} />
+        {error && <div className="flex items-center gap-2 border-b border-safar-broken/20 bg-safar-broken/5 px-6 py-2 text-xs text-safar-broken"><WifiOff className="h-3.5 w-3.5" /><span>{error}</span><button onClick={() => reload()} className="ml-auto rounded-lg border border-safar-broken/20 bg-white px-2 py-1">Retry</button></div>}
+        <main className="flex-1 overflow-y-auto scrollbar-thin p-5 lg:p-7">
+          {noTripFound && page !== 'trips' ? (
+            <div className="flex min-h-full items-center justify-center p-8"><div className="max-w-md text-center"><div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-card"><Briefcase className="h-7 w-7" /></div><h2 className="text-xl font-semibold text-slate-900">No trips yet</h2><p className="mt-2 text-sm text-slate-600">Create your first journey to start monitoring risks and recovery options.</p><button onClick={() => setCreateTripOpen(true)} className="mt-5 rounded-xl bg-safar-blue px-4 py-2.5 text-sm font-semibold text-white">Create a trip</button></div></div>
+          ) : !trip.id && page !== 'trips' ? (
+            // No trip loaded yet: never render pages against the blank placeholder trip.
+            loading ? <div className="flex min-h-full items-center justify-center"><LifeBuoy className="h-6 w-6 animate-pulse text-safar-blue" /></div> : null
+          ) : (
+            <div key={page} className="animate-fade-in">
+              {page === 'overview' && <Overview onNavigate={navigate} />}
+              {page === 'journey' && <JourneyPage onNavigate={navigate} />}
+              {page === 'risk' && <RiskIntelligence onNavigate={navigate} />}
+              {page === 'trips' && <Trips onNavigate={navigate} />}
+              {page === 'sathi' && <SathiPage onClose={() => navigate('overview')} />}
+              {page === 'more' && <MorePage onNavigate={navigate} onRunDemo={trip.resettable ? runDemo : undefined} />}
+              {page === 'impact' && <ImpactPage onNavigate={navigate} />}
+              {page === 'recovery' && <RecoveryCenter onNavigate={navigate} />}
+            </div>
+          )}
+        </main>
+      </div>
+      <SathiPage open={sathiOverlay} overlay onClose={() => setSathiOverlay(false)} />
+      <CreateTripModal open={createTripOpen} onClose={() => setCreateTripOpen(false)} onCreated={() => { setCreateTripOpen(false); setPage('overview'); }} />
+>>>>>>> origin/shreya
       <NetworkStatusBanner />
     </div>
   );
