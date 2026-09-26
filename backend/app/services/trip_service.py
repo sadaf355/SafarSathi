@@ -102,6 +102,8 @@ def _edge_to_out(edge: DependencyEdge) -> EdgeOut:
         label=edge.label,
         type="dependency",
         animated=edge.animated,
+        dependency_type=edge.dependency_type.value,
+        min_buffer_minutes=edge.min_buffer_minutes,
     )
 
 
@@ -170,6 +172,7 @@ def get_trip_out(db: Session, trip_id: str, traveler_id: str | None = None) -> T
         health_score=trip.health_score,
         status=trip.status.value,
         days=_build_days(nodes),
+        resettable=trip.id in seed_module.DEMO_TRIP_IDS,
     )
 
 
@@ -251,6 +254,8 @@ def add_node(db: Session, trip_id: str, traveler_id: str, request: NodeCreateReq
         icon=icon,
         origin_code=request.origin_code,
         destination_code=request.destination_code,
+        lat=request.lat,
+        lng=request.lng,
     )
     NodeRepository(db).save(node)
 

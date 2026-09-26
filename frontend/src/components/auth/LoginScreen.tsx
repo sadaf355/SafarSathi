@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { LifeBuoy, Loader2 } from 'lucide-react';
 import { useAuth } from '@/store/AuthContext';
+import * as api from '@/services/api';
 
 type Mode = 'login' | 'register';
 
@@ -10,6 +11,25 @@ export function LoginScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Name of the backend's demo traveler, or null when this server has none
+  // (e.g. SEED_DEMO_DATA is off) - decided by asking the backend, never
+  // assumed. The probe's token is discarded; signing in happens only on click.
+  const [demoName, setDemoName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getDemoAccount()
+      .then((demo) => {
+        if (!cancelled) setDemoName(demo.name);
+      })
+      .catch(() => {
+        if (!cancelled) setDemoName(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -107,6 +127,8 @@ export function LoginScreen() {
             </button>
           </form>
 
+          {demoName && (
+          <>
           <div className="my-4 flex items-center gap-2">
             <div className="h-px flex-1 bg-slate-200" />
             <span className="text-[10px] text-slate-500">OR</span>
@@ -119,8 +141,10 @@ export function LoginScreen() {
             onClick={() => continueAsDemo().catch(() => {})}
             className="w-full rounded-lg border border-slate-300 py-2 text-xs font-medium text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
           >
-            Continue as Demo Traveler (Aisha Khan)
+            Continue as Demo Traveler ({demoName})
           </button>
+          </>
+          )}
         </div>
       </div>
     </div>

@@ -12,7 +12,7 @@ interface MetricCardProps {
   className?: string;
 }
 
-export function MetricCard({ value, label, prefix, suffix, icon, accent = 'default', animate = true, className }: MetricCardProps) {
+export function MetricCard({ value, label, prefix = '', suffix = '', icon, accent = 'default', animate = true, className }: MetricCardProps) {
   const accents = {
     default: 'text-slate-900',
     green: 'text-safar-safe',

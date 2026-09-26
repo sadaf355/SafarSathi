@@ -225,6 +225,8 @@ export interface HotelCreateRequest {
   scheduledStart: string;
   scheduledEnd: string;
   cost: number;
+  lat?: number;
+  lng?: number;
 }
 
 export interface ActivityCreateRequest {
@@ -236,6 +238,8 @@ export interface ActivityCreateRequest {
   scheduledStart: string;
   scheduledEnd: string;
   cost: number;
+  lat?: number;
+  lng?: number;
 }
 
 export interface TransferCreateRequest {
@@ -356,6 +360,22 @@ export async function extractDisruptionReport(
   });
 }
 
+/** Best-effort lookup of coordinates for a free-text location. Resolves to
+ * null when the location isn't found or the lookup fails for any reason -
+ * callers treat coordinates as optional. Goes through `attempt` rather than
+ * `request` so a slow lookup never shows the cold-start retry banner. */
+export async function geocodeLocation(query: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    return await attempt<{ lat: number; lng: number }>(
+      '/api/geocode',
+      { method: 'POST', body: JSON.stringify({ query }) },
+      DEFAULT_TIMEOUT_MS
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     await get<{ status: string }>('/api/health');
@@ -378,6 +398,7 @@ export interface TravelerProfile {
   email: string;
   homeAirport: string;
   loyaltyTier: string;
+  emailNotificationsOptIn: boolean;
 }
 
 export async function login(email: string, password: string): Promise<AuthResponse> {
@@ -394,4 +415,8 @@ export async function getDemoAccount(): Promise<AuthResponse> {
 
 export async function getMe(): Promise<TravelerProfile> {
   return get<TravelerProfile>('/api/auth/me');
+}
+
+export async function updateMe(changes: { emailNotificationsOptIn: boolean }): Promise<TravelerProfile> {
+  return request<TravelerProfile>('/api/auth/me', { method: 'PATCH', body: JSON.stringify(changes) });
 }

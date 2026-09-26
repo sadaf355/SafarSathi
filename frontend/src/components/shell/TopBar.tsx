@@ -154,7 +154,7 @@ export function TopBar({ current, onOpenAI, onRunDemo, onReset }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        {phase !== 'idle' && !demoRunning && (
+        {trip.resettable && phase !== 'idle' && !demoRunning && (
           <button
             onClick={onReset}
             className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
@@ -166,7 +166,7 @@ export function TopBar({ current, onOpenAI, onRunDemo, onReset }: TopBarProps) {
           </button>
         )}
 
-        <button
+        {trip.resettable && <button
           onClick={onRunDemo}
           disabled={demoRunning}
           className={cn(
@@ -176,7 +176,7 @@ export function TopBar({ current, onOpenAI, onRunDemo, onReset }: TopBarProps) {
         >
           <Play className="h-3.5 w-3.5" />
           {demoRunning ? 'Demo Running...' : 'Run Disruption Demo'}
-        </button>
+        </button>}
 
         <div ref={notifRef} className="relative">
           <button

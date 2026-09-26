@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useApp } from '@/store/AppContext';
-import { ApiError } from '@/services/api';
+import { ApiError, geocodeLocation } from '@/services/api';
 import { Compass, Loader2 } from 'lucide-react';
 
 interface AddActivityModalProps {
@@ -29,6 +29,9 @@ export function AddActivityModal({ open, onClose, onAdded }: AddActivityModalPro
   const [scheduledStart, setScheduledStart] = useState('');
   const [scheduledEnd, setScheduledEnd] = useState('');
   const [cost, setCost] = useState('');
+  // Coordinates for `query`, filled in silently on blur. Keyed by the query so
+  // edits after the lookup (or out-of-order responses) never submit stale coords.
+  const [geo, setGeo] = useState<{ query: string; lat: number; lng: number } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -41,6 +44,7 @@ export function AddActivityModal({ open, onClose, onAdded }: AddActivityModalPro
     setScheduledStart('');
     setScheduledEnd('');
     setCost('');
+    setGeo(null);
     setFieldErrors({});
     setSubmitError(null);
     setSubmitting(false);
@@ -50,6 +54,13 @@ export function AddActivityModal({ open, onClose, onAdded }: AddActivityModalPro
     if (submitting) return;
     resetForm();
     onClose();
+  };
+
+  const handleLocationBlur = async () => {
+    const query = location.trim();
+    if (!query || geo?.query === query) return;
+    const coords = await geocodeLocation(query);
+    if (coords) setGeo({ query, ...coords });
   };
 
   const validate = (): FieldErrors => {
@@ -96,16 +107,19 @@ export function AddActivityModal({ open, onClose, onAdded }: AddActivityModalPro
     if (Object.keys(errors).length > 0) return;
 
     setSubmitting(true);
+    const trimmedLocation = location.trim();
+    const coords = geo && geo.query === trimmedLocation ? { lat: geo.lat, lng: geo.lng } : {};
     try {
       await addNode({
         category: 'activity',
         title: title.trim(),
         provider: provider.trim(),
         confirmation: confirmation.trim().toUpperCase(),
-        location: location.trim(),
+        location: trimmedLocation,
         scheduledStart,
         scheduledEnd,
         cost: Number(cost),
+        ...coords,
       });
       resetForm();
       onAdded();
@@ -199,6 +213,7 @@ export function AddActivityModal({ open, onClose, onAdded }: AddActivityModalPro
             type="text"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
+            onBlur={handleLocationBlur}
             placeholder="e.g. Leh Main Bazaar / Pangong Lake North Shore"
             disabled={submitting}
             className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm text-slate-900 placeholder-slate-500 focus:border-safar-blue focus:outline-none focus:ring-1 focus:ring-safar-blue disabled:opacity-50"

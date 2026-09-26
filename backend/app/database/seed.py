@@ -31,6 +31,8 @@ DEFAULT_TRAVELER_ID = "traveler-aisha"
 LADAKH_TRIP_ID = "trip-ladakh-2025"
 GOA_TRIP_ID = "trip-goa-2026"
 RAJASTHAN_TRIP_ID = "trip-rajasthan-2026"
+# Trips reset_trip() can rebuild - the only ones with a known "original" state.
+DEMO_TRIP_IDS = frozenset({LADAKH_TRIP_ID, GOA_TRIP_ID, RAJASTHAN_TRIP_ID})
 
 
 def _clear_trip_data(db: Session, trip_id: str) -> None:
@@ -570,6 +572,12 @@ def build_rajasthan_trip(db: Session, traveler_id: str) -> Trip:
 
 
 def seed_if_empty(db: Session) -> None:
+    """Creates the demo traveler and the three demo trips unless they already exist.
+
+    Unconditional when called: calling it IS the opt-in (the test fixture does so
+    directly). The only automatic caller, app startup in main.py, is gated
+    behind Settings.seed_demo_data so real deployments start empty.
+    """
     existing = db.get(Traveler, DEFAULT_TRAVELER_ID)
     if existing is not None:
         return
@@ -577,7 +585,7 @@ def seed_if_empty(db: Session) -> None:
     traveler = Traveler(
         id=DEFAULT_TRAVELER_ID,
         name="Aisha Khan",
-        email="aisha.khan@email.com",
+        email="aisha.khan@example.com",  # reserved domain: never deliverable
         home_airport="Mumbai (BOM)",
         loyalty_tier="Premium",
         password_hash=hash_password("triprescue-demo"),

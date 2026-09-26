@@ -18,6 +18,7 @@ interface AuthContextValue extends AuthState {
   registerAccount: (name: string, email: string, password: string) => Promise<void>;
   continueAsDemo: () => Promise<void>;
   logout: () => void;
+  setEmailNotificationsOptIn: (optIn: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -89,8 +90,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ status: 'unauthenticated', profile: null, busy: false, error: null, wakingServer: false });
   }, []);
 
+  const setEmailNotificationsOptIn = useCallback(async (optIn: boolean) => {
+    const profile = await api.updateMe({ emailNotificationsOptIn: optIn });
+    setState((s) => ({ ...s, profile }));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ ...state, loginWithPassword, registerAccount, continueAsDemo, logout }}>
+    <AuthContext.Provider
+      value={{ ...state, loginWithPassword, registerAccount, continueAsDemo, logout, setEmailNotificationsOptIn }}
+    >
       {children}
     </AuthContext.Provider>
   );

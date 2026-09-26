@@ -70,12 +70,12 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   const [understood, setUnderstood] = useState<{ label: string; nodeId?: string } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [listening, setListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const delayMinutes = DELAY_BASED_TYPES.has(selected) ? delayHours * 60 : undefined;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !tripId) return;
     let cancelled = false;
     setPreviewLoading(true);
     api
@@ -96,7 +96,7 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
 
 
   const analyzeSmartReport = async () => {
-    if (!smartText.trim()) return;
+    if (!smartText.trim() || !tripId) return;
     setAnalyzing(true);
     try {
       const result = await api.extractDisruptionReport(
@@ -127,7 +127,7 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = 'en-IN';
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript as string;
       setSmartText((prev) => (prev.trim() ? `${prev} ${transcript}` : transcript));
       setUnderstood(null);

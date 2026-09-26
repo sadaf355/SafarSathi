@@ -15,7 +15,7 @@ export function RiskIntelligence({ onNavigate }: { onNavigate?: (page:string)=>v
   const { tripId, trip } = useApp();
   const [risk,setRisk]=useState<api.RiskAnalysis|null>(null); const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null); const [weather,setWeather]=useState<WeatherSnapshot|null>(null); const [step,setStep]=useState(0);
   const [thresholds]=useLocalStorageState('safarsathi.settings.riskThresholds',{connection:60,schedule:50});
-  const load=()=>{let cancelled=false;setLoading(true);setError(null);setStep(0);api.getRiskAnalysis(tripId).then(d=>{if(!cancelled)setRisk(d)}).catch(e=>{if(!cancelled){setRisk(null);setError(e instanceof api.ApiError?e.message:'Could not load risk analysis.')}}).finally(()=>{if(!cancelled)setLoading(false)});return()=>{cancelled=true}};
+  const load=()=>{if(!tripId){setRisk(null);setLoading(false);return;}let cancelled=false;setLoading(true);setError(null);setStep(0);api.getRiskAnalysis(tripId).then(d=>{if(!cancelled)setRisk(d)}).catch(e=>{if(!cancelled){setRisk(null);setError(e instanceof api.ApiError?e.message:'Could not load risk analysis.')}}).finally(()=>{if(!cancelled)setLoading(false)});return()=>{cancelled=true}};
   useEffect(load,[tripId,trip.healthScore]);
   useEffect(()=>{if(!loading){setStep(4);return} const timers=[1,2,3].map((n,i)=>window.setTimeout(()=>setStep(n),(i+1)*500));return()=>timers.forEach(clearTimeout)},[loading]);
   const weatherNode=trip.nodes.find(n=>n.lat!=null&&n.lng!=null);

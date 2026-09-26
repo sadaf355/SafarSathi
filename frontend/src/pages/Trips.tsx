@@ -23,7 +23,9 @@ export function Trips({ onNavigate }: TripsProps) {
   const [summaries, setSummaries] = useState<api.TripSummary[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const hasCurrentTrip = !noTripFound;
+  // Only a trip that has actually loaded counts - never the blank placeholder
+  // shown while the traveler's trip list is still being fetched.
+  const hasCurrentTrip = !noTripFound && !!trip.id;
 
   const loadTrips = () => {
     let cancelled = false;

@@ -14,7 +14,7 @@ export function MorePage({ onNavigate, onRunDemo }: MorePageProps) {
   return <div><PageHeader title="More" description="Secondary tools and account controls." crumbs={['Home','More']} onNavigate={onNavigate} /><div className="grid max-w-3xl gap-3 sm:grid-cols-3">
     <MoreCard icon={<History />} title="Activity" description="See what SafarSathi has changed or detected." onClick={()=>setTab('activity')} />
     <MoreCard icon={<Settings />} title="Preferences" description="Choose how recovery plans should be ranked." onClick={()=>setTab('settings')} />
-    <MoreCard icon={<Play />} title="Demo Mode" description="Run the complete disruption-to-recovery story." onClick={onRunDemo ?? (()=>onNavigate('overview'))} />
+    {onRunDemo && <MoreCard icon={<Play />} title="Demo Mode" description="Run the complete disruption-to-recovery story." onClick={onRunDemo} />}
   </div></div>;
 }
 function MoreCard({icon,title,description,onClick}:{icon:React.ReactNode;title:string;description:string;onClick:()=>void}) { return <button onClick={onClick} className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-card transition hover:-translate-y-0.5 hover:border-safar-blue/30"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-safar-blue/10 text-safar-blue">{icon}</div><h2 className="mt-4 text-sm font-bold text-slate-900">{title}</h2><p className="mt-1 text-xs leading-5 text-slate-600">{description}</p><span className="mt-4 inline-block text-xs font-semibold text-safar-blue">Open →</span></button>; }

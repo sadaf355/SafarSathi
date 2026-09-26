@@ -24,7 +24,7 @@ export function SathiPage({ open = true, overlay = false, onClose }: SathiPagePr
   if (!open) return null;
 
   const send = async (text: string) => {
-    if (!text.trim() || thinking) return;
+    if (!text.trim() || thinking || !tripId) return;
     setMessages(m=>[...m,{id:`u-${Date.now()}`,role:'user',content:text,timestamp:now()}]); setInput(''); setThinking(true);
     try { const answer=await api.askAssistant(tripId,text); setMessages(m=>[...m,{id:`a-${Date.now()}`,role:'assistant',content:answer.content,timestamp:now(),references:answer.references}]); }
     catch { setMessages(m=>[...m,{id:`e-${Date.now()}`,role:'assistant',content:'I can’t reach the travel intelligence service right now. Your current trip state is still available.',timestamp:now()}]); }

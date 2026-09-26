@@ -1,3 +1,5 @@
+from typing import Literal
+
 from app.schemas.base import CamelModel
 
 
@@ -34,6 +36,10 @@ class RecoveryOptionOut(CamelModel):
     feasible: bool = True
     provider_reason: str | None = None
     recovery_narrative: str | None = None
+    # Whether the provider data behind this option is real availability/pricing
+    # ("live") or the built-in mock catalogue ("simulated"). Never "live" unless
+    # every provider-sourced change in the option provably came from a live provider.
+    data_source: Literal["live", "simulated"]
 
 
 class ApplyRecoveryRequest(CamelModel):

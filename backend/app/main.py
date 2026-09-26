@@ -8,6 +8,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.api.routes import assistant, auth, disruptions, health, recovery, trips
 from app.config import get_settings
+from app.core.logging_config import configure_logging
 from app.core.middleware import RequestTimingMiddleware
 from app.core.rate_limiting import limiter
 from app.database.base import Base
@@ -23,6 +24,7 @@ logger = logging.getLogger("triprescue")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    configure_logging()
     settings.enforce_secure_auth_secret()  # fails closed outside development, see config.py
     if settings.uses_insecure_default_auth_secret:
         logger.warning(
@@ -36,13 +38,32 @@ async def lifespan(app: FastAPI):
         # a fresh deploy doesn't silently create an out-of-band schema that
         # alembic then thinks is already at some unknown revision.
         Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    try:
-        seed_if_empty(db)
-    finally:
-        db.close()
+    if settings.seed_demo_data:
+        db = SessionLocal()
+        try:
+            seed_if_empty(db)
+        finally:
+            db.close()
+    else:
+        logger.info("SEED_DEMO_DATA is off; skipping demo traveler and demo trip seeding.")
     yield
 
+
+def _init_error_tracking() -> None:
+    dsn = get_settings().sentry_dsn
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+    except ImportError:
+        logger.warning("SENTRY_DSN is set but sentry-sdk is not installed; error tracking is disabled.")
+        return
+    sentry_sdk.init(dsn=dsn)
+
+
+# Must run before FastAPI() is constructed: Sentry's integrations patch
+# Starlette's middleware stack, which lifespan startup is already too late for.
+_init_error_tracking()
 
 app = FastAPI(title="TripRescue API", version="0.1.0", lifespan=lifespan)
 app.state.limiter = limiter
@@ -70,6 +91,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 app.include_router(health.router)
 app.include_router(trips.router)
+app.include_router(trips.geocode_router)
 app.include_router(disruptions.router)
 app.include_router(recovery.router)
 app.include_router(assistant.router)

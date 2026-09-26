@@ -48,6 +48,22 @@ class TravelerOut(CamelModel):
     email: str
     home_airport: str
     loyalty_tier: str
+    email_notifications_opt_in: bool
+
+
+class TravelerUpdateRequest(CamelModel):
+    email_notifications_opt_in: bool
+
+
+def _traveler_out(traveler: Traveler) -> TravelerOut:
+    return TravelerOut(
+        traveler_id=traveler.id,
+        name=traveler.name,
+        email=traveler.email,
+        home_airport=traveler.home_airport,
+        loyalty_tier=traveler.loyalty_tier,
+        email_notifications_opt_in=traveler.email_notifications_opt_in,
+    )
 
 
 def _auth_response(traveler: Traveler) -> AuthResponse:
@@ -96,10 +112,16 @@ def me(db: Session = Depends(get_db), traveler_id: str = Depends(get_current_tra
     traveler = db.get(Traveler, traveler_id)
     if not traveler:
         raise HTTPException(status_code=404, detail="Traveler not found.")
-    return TravelerOut(
-        traveler_id=traveler.id,
-        name=traveler.name,
-        email=traveler.email,
-        home_airport=traveler.home_airport,
-        loyalty_tier=traveler.loyalty_tier,
-    )
+    return _traveler_out(traveler)
+
+
+@router.patch("/me", response_model=TravelerOut)
+def update_me(
+    payload: TravelerUpdateRequest, db: Session = Depends(get_db), traveler_id: str = Depends(get_current_traveler_id)
+):
+    traveler = db.get(Traveler, traveler_id)
+    if not traveler:
+        raise HTTPException(status_code=404, detail="Traveler not found.")
+    traveler.email_notifications_opt_in = payload.email_notifications_opt_in
+    db.commit()
+    return _traveler_out(traveler)

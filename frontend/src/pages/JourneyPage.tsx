@@ -3,7 +3,10 @@ import { useApp } from '@/store/AppContext';
 import { ItineraryGraph } from '@/components/graph/ItineraryGraph';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { cn } from '@/lib/utils';
-import { Calendar, Map, GitBranch, Plane, Hotel, Car, Mountain, X, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Calendar, Map, GitBranch, Plane, Hotel, Car, Mountain, X, ArrowRight, AlertTriangle, Plus } from 'lucide-react';
+import { AddFlightModal } from '@/components/trip/AddFlightModal';
+import { AddAccommodationModal } from '@/components/trip/AddAccommodationModal';
+import { AddActivityModal } from '@/components/trip/AddActivityModal';
 import type { ItineraryNodeData } from '@/types';
 
 interface JourneyPageProps { onNavigate: (page: string) => void; }
@@ -13,6 +16,8 @@ export function JourneyPage({ onNavigate }: JourneyPageProps) {
   const { trip } = useApp();
   const [view, setView] = useState<'timeline' | 'graph' | 'map'>('timeline');
   const [selected, setSelected] = useState<ItineraryNodeData | null>(null);
+  const [adding, setAdding] = useState<'flight' | 'hotel' | 'activity' | null>(null);
+  const closeAdd = () => setAdding(null);
   const coordinates = trip.nodes.filter((n) => n.lat != null && n.lng != null);
   const mapBounds = useMemo(() => {
     if (!coordinates.length) return { minLng: 68, minLat: 7, maxLng: 90, maxLat: 37 };
@@ -27,8 +32,16 @@ export function JourneyPage({ onNavigate }: JourneyPageProps) {
       <div className="flex rounded-xl bg-slate-100 p-1">
         {([['timeline','Timeline',Calendar],['graph','Dependencies',GitBranch],['map','Map',Map]] as const).map(([id,label,Icon]) => <button key={id} onClick={() => setView(id)} className={cn('flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold', view === id ? 'bg-white text-safar-blue shadow-sm' : 'text-slate-600 hover:text-slate-900')}><Icon className="h-3.5 w-3.5" />{label}</button>)}
       </div>
-      <div className="px-3 text-xs text-slate-500">{trip.nodes.length} bookings · {trip.days.length} days</div>
+      <div className="flex flex-wrap items-center gap-2 px-1">
+        <span className="px-2 text-xs text-slate-500">{trip.nodes.length} bookings · {trip.days.length} days</span>
+        {([['flight','Flight'],['hotel','Hotel'],['activity','Activity']] as const).map(([kind,label]) => <button key={kind} onClick={() => setAdding(kind)} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 transition hover:border-safar-blue/40 hover:bg-safar-blue/5 hover:text-slate-900"><Plus className="h-3.5 w-3.5" />{label}</button>)}
+      </div>
     </div>
+    <AddFlightModal open={adding === 'flight'} onClose={closeAdd} onAdded={closeAdd} />
+    <AddAccommodationModal open={adding === 'hotel'} onClose={closeAdd} onAdded={closeAdd} />
+    <AddActivityModal open={adding === 'activity'} onClose={closeAdd} onAdded={closeAdd} />
+
+    {trip.nodes.length === 0 && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600">No bookings yet. Add a flight, hotel or activity above to start monitoring this trip.</div>}
 
     {view === 'timeline' && <div className="space-y-3">{trip.nodes.map((node, index) => <button key={node.id} onClick={() => setSelected(node)} className="group flex w-full items-start gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-card transition hover:border-safar-blue/30 hover:-translate-y-0.5">
       <div className="flex w-14 shrink-0 flex-col items-center"><span className="rounded-xl bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600">Day {node.day}</span>{index < trip.nodes.length - 1 && <span className="mt-2 h-10 w-px bg-slate-200" />}</div>

@@ -16,6 +16,7 @@ export function RecoveryCenter({ onNavigate }: { onNavigate?: (page: string) => 
   const [compareOpen, setCompareOpen] = useState(false);
   const sorted = useMemo(()=>recoveryOptions.filter(o=>o.feasible !== false).sort((a,b)=>b.score-a.score),[recoveryOptions]);
   const unavailable = useMemo(()=>recoveryOptions.find(o=>o.feasible === false),[recoveryOptions]);
+  const simulated = useMemo(()=>recoveryOptions.some(o=>o.dataSource !== 'live'),[recoveryOptions]);
 
   const apply = async () => { if(!confirm) return; try { await applyRecoveryPlan(confirm.id); addToast('success','Recovery applied',`${confirm.bookingsPreserved}/${confirm.totalBookings} commitments preserved.`); setConfirm(null); } catch { addToast('error','Could not apply recovery','Please try again.'); } };
   if (phase === 'idle') return <EmptyState icon={<LifeBuoy/>} title="No active disruption" text="Recovery plans appear here only when SafarSathi finds a journey problem."/>;
@@ -24,6 +25,7 @@ export function RecoveryCenter({ onNavigate }: { onNavigate?: (page: string) => 
 
   return <div><PageHeader title="Recovery Center" description="Choose a feasible way forward based on your priorities." crumbs={['Home','Risks','Recovery']} onNavigate={onNavigate}/>
     {activeDisruption && <div className="mb-5 rounded-2xl border border-safar-broken/20 bg-safar-broken/5 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-safar-broken">Current disruption</div><div className="mt-1 text-sm font-semibold text-slate-900">{activeDisruption.label}</div><div className="mt-1 text-xs text-slate-600">{activeDisruption.downstreamImpact} downstream booking(s) affected.</div></div>}
+    {simulated && <p className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">Simulated pricing — connect a live provider for real-time availability.</p>}
     {unavailable && <div className="mb-5 rounded-2xl border border-safar-broken/20 bg-safar-broken/5 p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-safar-broken">Provider unavailable</div><div className="mt-1 text-sm font-semibold text-slate-900">No recovery options from this provider</div><p className="mt-1 text-xs leading-5 text-slate-600">{unavailable.providerReason || unavailable.description}</p></div>}
     {sorted.length > 0 && <><div className="mb-4 flex items-center justify-between"><div><h2 className="text-sm font-bold text-slate-900">{sorted.length} recovery plans</h2><p className="text-xs text-slate-500">Select a plan to see how its score is built.</p></div><button onClick={()=>setCompareOpen(v=>!v)} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><GitCompare className="h-3.5 w-3.5"/> {compareOpen?'Hide comparison':'Compare plans'}</button></div>
     {compareOpen && <Comparison options={sorted} onSelect={(id)=>{selectRecovery(id);setCompareOpen(false)}}/>}

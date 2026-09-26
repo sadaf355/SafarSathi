@@ -1,5 +1,6 @@
 import { useApp } from '@/store/AppContext';
 import { useAuth } from '@/store/AuthContext';
+import { useState } from 'react';
 import { useLocalStorageState } from '@/lib/useLocalStorageState';
 import { cn } from '@/lib/utils';
 import type { TravelerPreferences } from '@/types';
@@ -8,7 +9,8 @@ import { PageHeader } from '@/components/ui/PageHeader';
 
 export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const { preferences, setPreferences } = useApp();
-  const { profile } = useAuth();
+  const { profile, setEmailNotificationsOptIn } = useAuth();
+  const [emailPrefError, setEmailPrefError] = useState<string | null>(null);
   const [notifPrefs, setNotifPrefs] = useLocalStorageState('safarsathi.settings.notifications', {
     highRisk: true,
     recoveryReady: true,
@@ -25,6 +27,12 @@ export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => vo
     providerIntegrations: true,
     analytics: false,
   });
+
+  const updateEmailOptIn = (optIn: boolean) => {
+    if (!profile) return;
+    setEmailPrefError(null);
+    setEmailNotificationsOptIn(optIn).catch(() => setEmailPrefError('Could not save your email preference. Please try again.'));
+  };
 
   const updatePreference = (key: keyof TravelerPreferences['recoveryPriorities'], value: boolean) => {
     setPreferences({
@@ -102,6 +110,11 @@ export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => vo
           <Toggle label="Booking updates" checked={notifPrefs.bookingUpdates} onChange={(v) => setNotifPrefs(p => ({ ...p, bookingUpdates: v }))} />
           <Toggle label="System status changes" checked={notifPrefs.systemStatus} onChange={(v) => setNotifPrefs(p => ({ ...p, systemStatus: v }))} />
           <Toggle label="Weather warnings" checked={notifPrefs.weather} onChange={(v) => setNotifPrefs(p => ({ ...p, weather: v }))} />
+        </div>
+        <p className="mb-3 mt-4 text-[11px] text-slate-500">Saved to your account.</p>
+        <div className="space-y-2">
+          <Toggle label="Email me disruption and recovery alerts" checked={profile?.emailNotificationsOptIn ?? false} onChange={updateEmailOptIn} />
+          {emailPrefError && <p className="text-[11px] text-safar-broken">{emailPrefError}</p>}
         </div>
       </SettingsSection>
 

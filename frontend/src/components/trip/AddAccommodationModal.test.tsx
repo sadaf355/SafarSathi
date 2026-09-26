@@ -52,7 +52,11 @@ beforeEach(() => {
     disruptionVsComfort: 50,
     recoveryPriorities: { minimizeCost: false, minimizeTime: false, minimizeDisruption: true, maximizeComfort: false },
   });
-  vi.mocked(api.listTrips).mockResolvedValue([]);
+  // The traveler owns exactly one trip; AppContext selects it from this list
+  // (there is no hardcoded default trip any more).
+  vi.mocked(api.listTrips).mockResolvedValue([
+    { id: 'trip-ladakh-2025', name: 'Test Trip', route: 'A → B', startDate: '2026-01-01', endDate: '2026-01-03', tripValue: 0, healthScore: 100, status: 'operational', nodeCount: 0, edgeCount: 0 },
+  ]);
 });
 
 async function renderModal(onAdded = vi.fn()) {
