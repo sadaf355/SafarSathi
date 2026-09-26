@@ -532,12 +532,16 @@ class RecoveryEngine:
             working_nodes[target.id].provider = alt.provider
             working_nodes[target.id].confirmation = alt.confirmation_hint
 
+            sim_disrupted_id = target.id if target.id == disrupted_node_id else disrupted_node_id
+            sim_disruption_type = "healthy" if target.id == disrupted_node_id else disruption_type
+            sim_delay = 0 if target.id == disrupted_node_id else delay_minutes
+
             result = self.propagation.propagate(
-                list(working_nodes.values()), working_edges, disrupted_node_id, disruption_type, delay_minutes, detected_at
+                list(working_nodes.values()), working_edges, sim_disrupted_id, sim_disruption_type, sim_delay, detected_at
             )
             impacts_new = dict(result.impacts)
             activity_actions, working_nodes, impacts_new = self._resolve_activity_conflicts(
-                working_nodes, working_edges, impacts_new, disrupted_node_id, disruption_type, delay_minutes, detected_at, provider_issues
+                working_nodes, working_edges, impacts_new, sim_disrupted_id, sim_disruption_type, sim_delay, detected_at, provider_issues
             )
             feasible = all(impacts_new[n.id].status != "broken" for n in nodes) and not provider_issues
             provider_reason = "; ".join(dict.fromkeys(provider_issues)) or None

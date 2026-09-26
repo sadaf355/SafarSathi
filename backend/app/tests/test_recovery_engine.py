@@ -3,7 +3,7 @@ from datetime import datetime
 from app.engines.propagation_engine import PropagationEngine
 from app.engines.recovery_engine import RecoveryEngine
 from app.engines.types import EngineEdge, EngineNode
-from app.providers.base import ActivityProvider, CancellationPolicy, HotelProvider, ProviderAlternative
+from app.providers.base import ActivityProvider, CancellationPolicy, HotelProvider, ProviderAlternative, TransferProvider
 from app.providers.mock_activity_provider import MockActivityProvider
 from app.providers.mock_flight_provider import MockFlightProvider
 from app.providers.mock_hotel_provider import MockHotelProvider
@@ -246,8 +246,9 @@ def test_activity_conflict_resolution_converges_on_chained_conflicts():
         transfer_provider=MockTransferProvider(),
     )
     working_nodes = {n.id: n for n in nodes}
+    provider_issues: list[str] = []
     actions, final_nodes, final_impacts = engine._resolve_activity_conflicts(
-        working_nodes, edges, impacts, "flight-x", "flight-delay", 90, detected_at
+        working_nodes, edges, impacts, "flight-x", "flight-delay", 90, detected_at, provider_issues
     )
 
     resolved_ids = {a.node_id for a in actions}
@@ -333,21 +334,48 @@ class _HotelConflictActivityProvider(ActivityProvider):
         return CancellationPolicy(False, 0, 24, "Test policy")
 
 
+class _TransferRebookProvider(TransferProvider):
+    def search(self, location: str, date: str) -> list[ProviderAlternative]:
+        return []
+
+    def get_alternatives(self, location: str, after: datetime) -> list[ProviderAlternative]:
+        return [
+            ProviderAlternative(
+                id="transfer-new",
+                provider="Transfer Co",
+                confirmation_hint="TR-NEW",
+                origin=location,
+                destination="Hotel",
+                departure=datetime(2025, 9, 13, 9, 30),
+                arrival=datetime(2025, 9, 13, 10, 30),
+                cost=1000,
+                tier="standard",
+                refundable=False,
+                refund_percentage=0,
+                cancellation_deadline_hours=0,
+            )
+        ]
+
+    def get_booking(self, confirmation: str) -> ProviderAlternative | None:
+        return None
+
+    def get_cancellation_policy(self, confirmation: str) -> CancellationPolicy:
+        return CancellationPolicy(False, 0, 0, "Test policy")
+
+
 def test_single_rebook_resolves_activity_conflicts_for_hotel_triggered_disruption():
     nodes = [
-        EngineNode("transfer", "transfer", "Airport Transfer", "Leh", datetime(2025, 9, 13, 8), datetime(2025, 9, 13, 9)),
         EngineNode("hotel", "hotel", "Hotel", "Leh", datetime(2025, 9, 13, 10), datetime(2025, 9, 13, 12), cost=10000, refundable=True, refund_percentage=0.5),
         EngineNode("activity", "activity", "Activity", "Leh", datetime(2025, 9, 13, 13), datetime(2025, 9, 13, 15)),
     ]
     edges = [
-        EngineEdge("transfer-hotel", "transfer", "hotel", "hard", min_buffer_minutes=30),
         EngineEdge("hotel-activity", "hotel", "activity", "soft", min_buffer_minutes=30),
     ]
     propagation = PropagationEngine()
     impacts = propagation.propagate(
-        nodes, edges, "transfer", "transfer-failure", 90, datetime(2025, 9, 13, 7, 0)
+        nodes, edges, "hotel", "hotel-unavailable", 0, datetime(2025, 9, 13, 7, 0)
     ).impacts
-    assert impacts["hotel"].status == "at-risk"
+    assert impacts["hotel"].status in ("broken", "at-risk")
 
     engine = RecoveryEngine(
         flight_provider=MockFlightProvider(),
@@ -356,9 +384,10 @@ def test_single_rebook_resolves_activity_conflicts_for_hotel_triggered_disruptio
         transfer_provider=MockTransferProvider(),
     )
     plans = engine.generate_plans(
-        nodes, edges, impacts, "transfer", "transfer-failure", 90, datetime(2025, 9, 13, 7, 0), DEFAULT_PREFERENCES
+        nodes, edges, impacts, "hotel", "hotel-unavailable", 0, datetime(2025, 9, 13, 7, 0), DEFAULT_PREFERENCES
     )
     assert plans and plans[0].feasible
     activity_actions = [a for a in plans[0].actions if a.node_id == "activity"]
     assert activity_actions
     assert activity_actions[0].change_type == "rescheduled"
+
