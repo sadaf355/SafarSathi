@@ -75,3 +75,15 @@ class TestEngineKwargsFor:
         assert kwargs["pool_size"] == 5
         assert kwargs["max_overflow"] == 10
         assert kwargs["pool_recycle"] == 300
+
+
+class TestRiskPredictionSettings:
+    def test_risk_prediction_settings_defaults(self):
+        settings = _settings()
+        assert settings.risk_prediction_enabled is True
+        assert settings.risk_prediction_interval_minutes == 15
+
+    def test_risk_prediction_settings_overrides(self):
+        settings = _settings(risk_prediction_enabled=False, risk_prediction_interval_minutes=30)
+        assert settings.risk_prediction_enabled is False
+        assert settings.risk_prediction_interval_minutes == 30
