@@ -7,9 +7,9 @@ import { RiskBadge } from '@/components/ui/RiskBadge';
 import * as api from '@/services/api';
 import { getWeather, type WeatherSnapshot } from '@/services/weather';
 import { useLocalStorageState } from '@/lib/useLocalStorageState';
-import type { RiskCardData, Alert } from '@/types';
+import type { RiskCardData } from '@/types';
 import { cn } from '@/lib/utils';
-import { ShieldAlert, AlertTriangle, CloudRain, CheckCircle2, Clock, Building2, Link2, ArrowRight } from 'lucide-react';
+import { AlertTriangle, CloudRain, CheckCircle2, Clock, Building2, Link2, ArrowRight } from 'lucide-react';
 
 export function RiskIntelligence({ onNavigate }: { onNavigate?: (page:string)=>void }) {
   const { tripId, trip } = useApp();

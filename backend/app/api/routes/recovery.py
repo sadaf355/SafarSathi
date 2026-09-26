@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_traveler_id
 from app.database.session import get_db
 from app.schemas.recovery import ApplyRecoveryRequest, ApplyRecoveryResult, RecoveryOptionOut
-from app.services import recovery_service, trip_service
+from app.services import assistant_service, recovery_service, trip_service
 
 router = APIRouter(prefix="/api/trips/{trip_id}", tags=["recovery"])
 
@@ -14,11 +14,17 @@ def generate_recovery_options(
     trip_id: str, db: Session = Depends(get_db), traveler_id: str = Depends(get_current_traveler_id)
 ):
     try:
-        return recovery_service.generate_recovery_options(db, trip_id, traveler_id)
+        options = recovery_service.generate_recovery_options(db, trip_id, traveler_id)
     except trip_service.TripNotFoundError:
         raise HTTPException(status_code=404, detail=f"Trip '{trip_id}' not found")
     except recovery_service.NoActiveDisruptionError:
         raise HTTPException(status_code=400, detail="No active disruption for this trip.")
+
+    narratives = assistant_service.generate_recovery_narrative(db, trip_id)
+    return [
+        option.model_copy(update={"recovery_narrative": narratives.get(option.id)})
+        for option in options
+    ]
 
 
 @router.post("/recovery/apply", response_model=ApplyRecoveryResult)

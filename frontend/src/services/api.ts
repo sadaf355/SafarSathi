@@ -168,6 +168,21 @@ export interface AssistantAnswer {
   proposedRecoveryId?: string | null;
 }
 
+export interface DisruptionExtractNodeInput {
+  id: string;
+  title: string;
+  label: string;
+  provider: string;
+  category: string;
+}
+
+export interface DisruptionExtractResult {
+  type: string;
+  delayMinutes?: number;
+  nodeId?: string;
+  source: 'llm' | 'fallback';
+}
+
 export interface DisruptionRequest {
   type: string;
   primaryNodeId?: string;
@@ -328,6 +343,18 @@ export async function resetTrip(tripId: string): Promise<Trip> {
 
 export async function askAssistant(tripId: string, message: string): Promise<AssistantAnswer> {
   return post<AssistantAnswer>('/api/assistant', { tripId, message });
+}
+
+export async function extractDisruptionReport(
+  tripId: string,
+  message: string,
+  nodes: DisruptionExtractNodeInput[]
+): Promise<DisruptionExtractResult> {
+  return post<DisruptionExtractResult>('/api/assistant/extract-disruption', {
+    tripId,
+    message,
+    nodes,
+  });
 }
 
 export async function checkHealth(): Promise<boolean> {

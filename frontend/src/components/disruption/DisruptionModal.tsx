@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Modal } from '@/components/ui/Modal';
+import { useToast } from '@/components/ui/ToastProvider';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/AppContext';
 import { disruptionTypes } from '@/data/mockData';
@@ -16,6 +17,7 @@ import {
   ArrowRight,
   Zap,
   Loader2,
+  Mic,
 } from 'lucide-react';
 import type { DisruptionType } from '@/types';
 
@@ -31,6 +33,27 @@ const iconMap: Record<string, typeof Clock> = {
 
 const DELAY_BASED_TYPES = new Set(['flight-delay', 'activity-delay']);
 
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: { results: { [i: number]: { [i: number]: { transcript: string } } } }) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+interface SpeechRecognitionWindow extends Window {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+}
+
+const SpeechRecognitionCtor: SpeechRecognitionConstructor | undefined =
+  typeof window !== 'undefined'
+    ? (window as SpeechRecognitionWindow).SpeechRecognition ?? (window as SpeechRecognitionWindow).webkitSpeechRecognition
+    : undefined;
+
 interface DisruptionModalProps {
   open: boolean;
   onClose: () => void;
@@ -38,12 +61,16 @@ interface DisruptionModalProps {
 
 export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   const { triggerDisruption, tripId, isBusy, trip } = useApp();
+  const { addToast } = useToast();
   const [selected, setSelected] = useState<DisruptionType['id']>('flight-delay');
   const [delayHours, setDelayHours] = useState(3);
   const [preview, setPreview] = useState<api.PropagationResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [smartText, setSmartText] = useState('');
   const [understood, setUnderstood] = useState<{ label: string; nodeId?: string } | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   const delayMinutes = DELAY_BASED_TYPES.has(selected) ? delayHours * 60 : undefined;
 
@@ -96,7 +123,19 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
           <div className="mt-1 text-sm font-semibold text-slate-900">What happened?</div>
           <div className="mt-3 flex gap-2">
             <textarea value={smartText} onChange={(e)=>{setSmartText(e.target.value);setUnderstood(null)}} rows={2} placeholder="e.g. My Mumbai to Delhi flight is delayed by 3 hours." className="min-h-20 flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-safar-blue focus:outline-none"/>
-            <button onClick={analyzeSmartReport} disabled={!smartText.trim()} className="self-end rounded-xl bg-safar-blue px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Analyze</button>
+            {SpeechRecognitionCtor && (
+              <button
+                type="button"
+                onClick={toggleListening}
+                className={cn(
+                  'self-end flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-white',
+                  listening ? 'bg-safar-broken animate-pulse-soft' : 'bg-safar-blue'
+                )}
+              >
+                <Mic className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button onClick={analyzeSmartReport} disabled={!smartText.trim() || analyzing} className="self-end flex items-center gap-1.5 rounded-xl bg-safar-blue px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">{analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Analyze'}</button>
           </div>
           {understood && <div className="mt-3 rounded-lg border border-safar-safe/20 bg-white p-3 text-xs"><div className="font-semibold text-slate-900">I understood</div><div className="mt-1 text-slate-600">{understood.label}</div><div className="mt-2 text-[10px] text-slate-500">Review the details below before confirming.</div></div>}
         </div>

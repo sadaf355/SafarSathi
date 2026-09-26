@@ -6,7 +6,7 @@ from app.database.session import get_db
 from app.repositories.disruption_repository import DisruptionRepository
 from app.repositories.node_repository import NodeRepository
 from app.schemas.disruption import DisruptionRequest, ImpactEntryOut, PropagationResultOut
-from app.services import disruption_service, trip_service
+from app.services import assistant_service, disruption_service, trip_service
 from app.services.converters import format_time, to_engine_edge, to_engine_node
 from app.engines.financial_engine import FinancialEngine
 from app.engines.itinerary_engine import ItineraryEngine
@@ -26,11 +26,16 @@ def trigger_disruption(
     traveler_id: str = Depends(get_current_traveler_id),
 ):
     try:
-        return disruption_service.trigger_disruption(db, trip_id, request, traveler_id)
+        result = disruption_service.trigger_disruption(db, trip_id, request, traveler_id)
     except trip_service.TripNotFoundError:
         raise HTTPException(status_code=404, detail=f"Trip '{trip_id}' not found")
     except disruption_service.InvalidDisruptionError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+    narrative = assistant_service.generate_disruption_narrative(db, trip_id)
+    return result.model_copy(
+        update={"disruption": result.disruption.model_copy(update={"narrative": narrative})}
+    )
 
 
 @router.post("/propagate", response_model=PropagationResultOut)

@@ -8,12 +8,16 @@ import { AlertTriangle, ShieldAlert, DollarSign, ArrowRight, GitBranch, CheckCir
 
 interface Props { fullPage?: boolean; onNavigate?: (page: string) => void; }
 export function ImpactAnalysisPanel({ fullPage = false, onNavigate }: Props) {
-  const { activeDisruption, trip, phase } = useApp();
+  const { activeDisruption, trip } = useApp();
   const [revealed, setRevealed] = useState(0); const [showGraph, setShowGraph] = useState(false);
   const steps = activeDisruption?.cascadeSteps ?? [];
   useEffect(() => { setRevealed(steps.length ? 1 : 0); if (steps.length < 2) return; const timers=steps.slice(1).map((_,i)=>window.setTimeout(()=>setRevealed(i+2),650*(i+1))); return()=>timers.forEach(clearTimeout); }, [activeDisruption?.id, steps.length]);
   const primaryNode = trip.nodes.find(n=>n.id===activeDisruption?.primaryNodeId);
-  const narrative = useMemo(()=>activeDisruption ? `Your ${activeDisruption.label.toLowerCase()} affects ${activeDisruption.downstreamImpact} downstream booking${activeDisruption.downstreamImpact===1?'':'s'}. SafarSathi is tracing dependency buffers to separate broken commitments from bookings that remain safe.` : '', [activeDisruption]);
+  const narrative = useMemo(()=>{
+    if (!activeDisruption) return '';
+    if (activeDisruption.narrative) return activeDisruption.narrative;
+    return `Your ${activeDisruption.label.toLowerCase()} affects ${activeDisruption.downstreamImpact} downstream booking${activeDisruption.downstreamImpact===1?'':'s'}. SafarSathi is tracing dependency buffers to separate broken commitments from bookings that remain safe.`;
+  }, [activeDisruption]);
   if (!activeDisruption) return <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-safar-safe"/><h2 className="mt-3 font-semibold text-slate-900">No active disruption</h2><p className="mt-1 text-sm text-slate-600">Your journey is currently being monitored.</p></div>;
   return <div className={cn('space-y-5', !fullPage && 'h-full overflow-y-auto')}>
     <div className="rounded-2xl border border-safar-broken/20 bg-white p-5 shadow-card"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-safar-broken"><ShieldAlert className="h-5 w-5"/><span className="text-xs font-bold uppercase tracking-wider">Disruption detected</span></div><h2 className="mt-2 text-xl font-bold text-slate-900">{primaryNode?.title ?? activeDisruption.primaryNodeId}</h2><p className="mt-1 text-sm text-slate-600">{activeDisruption.label}</p></div><div className="rounded-full bg-safar-broken/10 px-3 py-1.5 text-xs font-semibold text-safar-broken">{activeDisruption.impactLevel.toUpperCase()} impact</div></div></div>

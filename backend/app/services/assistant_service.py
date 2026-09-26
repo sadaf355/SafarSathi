@@ -10,11 +10,14 @@ the assistant is never left non-functional.
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.models.enums import DisruptionType
 from app.repositories.disruption_repository import DisruptionRepository
 from app.repositories.recovery_repository import RecoveryRepository
 from app.schemas.assistant import AssistantReference, AssistantResponse
@@ -374,6 +377,231 @@ def _llm_answer(context: dict, message: str, db: Session, trip_id: str, traveler
         # or a persistent outage, so log it (no secrets, just the failure).
         logger.warning("LLM call failed; falling back to the deterministic assistant.", exc_info=True)
         return None, None
+
+
+def generate_recovery_narrative(db: Session, trip_id: str) -> dict[str, str]:
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        return {}
+    try:
+        import anthropic
+
+        context = _gather_context(db, trip_id)
+        disruption = context["disruption"]
+        options = context["recovery_options"]
+
+        if not disruption or not options:
+            return {}
+
+        grounded = [
+            {
+                "id": o.id,
+                "name": o.name,
+                "cost_delta": o.cost_delta,
+                "time_impact_minutes": o.time_impact_minutes,
+                "bookings_preserved": o.bookings_preserved,
+                "total_bookings": o.total_bookings,
+                "score": o.score,
+                "score_breakdown": o.score_breakdown,
+            }
+            for o in options
+        ]
+
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        response = client.messages.create(
+            model=settings.anthropic_model,
+            max_tokens=600,
+            system=(
+                "You are the TripRescue assistant. You will be given a disruption and a ranked list of "
+                "recovery options, each with cost, time, preservation, and score data. For EACH option, "
+                "write a 2-3 sentence plain-language explanation of that option, referencing only the "
+                "numbers given - never invent facts not in the data. "
+                "Respond with ONLY a JSON object mapping each option's id to its explanation string, like: "
+                '{"opt_123": "explanation text...", "opt_456": "explanation text..."}'
+                " No markdown, no code fences, no extra text outside the JSON object."
+            ),
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Disruption: {disruption.label}\nRecovery options:\n{grounded}",
+                }
+            ],
+        )
+        text = response.content[0].text if response.content else None
+        parsed = json.loads(text) if text else None
+        if not isinstance(parsed, dict):
+            raise ValueError("LLM narrative response was not a JSON object.")
+        return parsed
+    except Exception:
+        logger.warning("LLM call failed; falling back to the deterministic assistant.", exc_info=True)
+        return {}
+
+
+def generate_disruption_narrative(db: Session, trip_id: str) -> str | None:
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        return None
+    try:
+        import anthropic
+
+        context = _gather_context(db, trip_id)
+        disruption = context["disruption"]
+
+        if disruption is None:
+            return None
+
+        grounded = {
+            "label": disruption.label,
+            "impact_level": disruption.impact_level.value,
+            "direct_impact": disruption.direct_impact,
+            "downstream_impact": disruption.downstream_impact,
+            "financial_exposure": disruption.financial_exposure,
+            "refund_exposure": disruption.refund_exposure,
+            "cascade_steps": [s.description for s in disruption.cascade_steps],
+        }
+
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        response = client.messages.create(
+            model=settings.anthropic_model,
+            max_tokens=300,
+            system=(
+                "You are the TripRescue assistant. You will be given data about a single travel disruption "
+                "and the cascade of downstream effects it caused. Write a 2-3 sentence plain-language "
+                "explanation of what happened and why it matters, referencing only the numbers and cascade "
+                "steps given - never invent facts not in the data. Respond with ONLY the explanation "
+                "sentence(s), no preamble, no labels, no markdown."
+            ),
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Disruption data:\n{grounded}",
+                }
+            ],
+        )
+        return response.content[0].text if response.content else None
+    except Exception:
+        logger.warning("LLM call failed; falling back to the deterministic assistant.", exc_info=True)
+        return None
+
+
+def _fallback_extract_disruption(message: str, nodes: list[DisruptionExtractNode]) -> dict:
+    lowered = message.lower()
+    hours_match = re.search(r"(\d+(?:\.5)?)\s*(?:hour|hours|hr|hrs|h)", lowered)
+    minutes_match = re.search(r"(\d+)\s*(?:minute|minutes|min|mins|m)", lowered)
+    if hours_match:
+        minutes = float(hours_match.group(1)) * 60
+    elif minutes_match:
+        minutes = float(minutes_match.group(1))
+    else:
+        minutes = 180
+
+    node = next(
+        (
+            n
+            for n in nodes
+            if n.title.lower() in lowered or n.label.lower() in lowered or n.provider.lower() in lowered
+        ),
+        None,
+    )
+
+    is_weather = bool(re.search(r"storm|snow|fog|flood|cyclone|weather|monsoon|blizzard", lowered))
+    if is_weather:
+        disruption_type = "weather-disruption"
+    elif "cancel" in lowered:
+        disruption_type = "flight-cancellation"
+    elif "miss" in lowered and "connection" in lowered:
+        disruption_type = "missed-connection"
+    elif "hotel" in lowered:
+        disruption_type = "hotel-conflict"
+    else:
+        disruption_type = "flight-delay"
+
+    return {
+        "type": disruption_type,
+        "delay_minutes": round(minutes),
+        "node_id": node.id if node else None,
+    }
+
+
+def _llm_extract_disruption(message: str, nodes: list[DisruptionExtractNode]) -> dict | None:
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        return None
+    try:
+        import anthropic
+
+        node_ids = {n.id for n in nodes}
+        grounded_nodes = [
+            {"id": n.id, "title": n.title, "label": n.label, "provider": n.provider, "category": n.category}
+            for n in nodes
+        ]
+
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        response = client.messages.create(
+            model=settings.anthropic_model,
+            max_tokens=300,
+            system=(
+                "You extract structured disruption reports from natural-language traveler messages. "
+                "Respond with ONLY a single JSON object, no prose, no markdown fences. Schema: "
+                '{"type": one of [\'flight-delay\',\'flight-cancellation\',\'missed-connection\','
+                "'hotel-conflict','hotel-cancellation','transfer-failure','activity-cancellation',"
+                "'activity-delay','airport-closure','weather-disruption'], \"delayMinutes\": integer or "
+                'null, "nodeId": one of the provided node ids or null}. Only use a nodeId that appears '
+                "in the provided node list - never invent one. If the message doesn't mention a delay "
+                "duration, use null for delayMinutes."
+            ),
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Nodes:\n{grounded_nodes}\n\nTraveler message: {message}",
+                }
+            ],
+        )
+        text = response.content[0].text if response.content else None
+        if not text:
+            return None
+
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.strip("`")
+            if cleaned.startswith("json"):
+                cleaned = cleaned[4:]
+            cleaned = cleaned.strip()
+
+        parsed = json.loads(cleaned)
+        if not isinstance(parsed, dict):
+            raise ValueError("LLM extraction response was not a JSON object.")
+
+        extracted_type = parsed.get("type")
+        if extracted_type not in DisruptionType._value2member_map_:
+            return None
+
+        node_id = parsed.get("nodeId")
+        if node_id not in node_ids:
+            node_id = None
+
+        delay_minutes = parsed.get("delayMinutes")
+        if isinstance(delay_minutes, bool) or not isinstance(delay_minutes, (int, float)) or delay_minutes <= 0:
+            delay_minutes = None
+        else:
+            delay_minutes = round(delay_minutes)
+
+        return {"type": extracted_type, "delay_minutes": delay_minutes, "node_id": node_id}
+    except Exception:
+        # LLM outage/misconfiguration must never break the assistant - the
+        # deterministic responder below is the fallback - but a silent
+        # failure here means an operator has no way to notice a broken key
+        # or a persistent outage, so log it (no secrets, just the failure).
+        logger.warning("LLM call failed; falling back to the deterministic assistant.", exc_info=True)
+        return None
+
+
+def extract_disruption_report(message: str, nodes: list[DisruptionExtractNode]) -> DisruptionExtractResponse:
+    result = _llm_extract_disruption(message, nodes)
+    if result is not None:
+        return DisruptionExtractResponse(**result, source="llm")
+
+    return DisruptionExtractResponse(**_fallback_extract_disruption(message, nodes), source="fallback")
 
 
 def answer_question(db: Session, trip_id: str, message: str, traveler_id: str | None = None) -> AssistantResponse:

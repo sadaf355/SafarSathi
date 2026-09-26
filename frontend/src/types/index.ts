@@ -102,6 +102,7 @@ export interface Disruption {
   downstreamImpact: number;
   financialExposure: number;
   refundExposure: number;
+  narrative?: string | null;
   cascadeSteps: CascadeStep[];
   detectedAt: string;
 }
@@ -130,6 +131,7 @@ export interface RecoveryOption {
   scoreBreakdown: ScoreBreakdown;
   feasible?: boolean;
   providerReason?: string | null;
+  recoveryNarrative?: string | null;
 }
 
 export interface RecoveryChange {

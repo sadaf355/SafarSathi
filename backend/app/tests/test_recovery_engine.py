@@ -247,7 +247,7 @@ def test_activity_conflict_resolution_converges_on_chained_conflicts():
     )
     working_nodes = {n.id: n for n in nodes}
     actions, final_nodes, final_impacts = engine._resolve_activity_conflicts(
-        working_nodes, edges, impacts, "flight-x", "flight-delay", 90, detected_at
+        working_nodes, edges, impacts, "flight-x", "flight-delay", 90, detected_at, []
     )
 
     resolved_ids = {a.node_id for a in actions}
@@ -340,12 +340,12 @@ def test_single_rebook_resolves_activity_conflicts_for_hotel_triggered_disruptio
         EngineNode("activity", "activity", "Activity", "Leh", datetime(2025, 9, 13, 13), datetime(2025, 9, 13, 15)),
     ]
     edges = [
-        EngineEdge("transfer-hotel", "transfer", "hotel", "hard", min_buffer_minutes=30),
+        EngineEdge("transfer-hotel", "transfer", "hotel", "soft", min_buffer_minutes=30),
         EngineEdge("hotel-activity", "hotel", "activity", "soft", min_buffer_minutes=30),
     ]
     propagation = PropagationEngine()
     impacts = propagation.propagate(
-        nodes, edges, "transfer", "transfer-failure", 90, datetime(2025, 9, 13, 7, 0)
+        nodes, edges, "transfer", "flight-delay", 90, datetime(2025, 9, 13, 7, 0)
     ).impacts
     assert impacts["hotel"].status == "at-risk"
 
@@ -356,7 +356,7 @@ def test_single_rebook_resolves_activity_conflicts_for_hotel_triggered_disruptio
         transfer_provider=MockTransferProvider(),
     )
     plans = engine.generate_plans(
-        nodes, edges, impacts, "transfer", "transfer-failure", 90, datetime(2025, 9, 13, 7, 0), DEFAULT_PREFERENCES
+        nodes, edges, impacts, "transfer", "flight-delay", 90, datetime(2025, 9, 13, 7, 0), DEFAULT_PREFERENCES
     )
     assert plans and plans[0].feasible
     activity_actions = [a for a in plans[0].actions if a.node_id == "activity"]
