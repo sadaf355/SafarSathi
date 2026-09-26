@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { useApp } from '@/store/AppContext';
 import { disruptionTypes } from '@/data/mockData';
 import * as api from '@/services/api';
+import { useRouter } from '@/lib/router';
 import {
   Clock,
   XCircle,
@@ -38,14 +39,15 @@ interface DisruptionModalProps {
 
 export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   const { triggerDisruption, tripId, isBusy, trip } = useApp();
+  const { navigate } = useRouter();
   const [selected, setSelected] = useState<DisruptionType['id']>('flight-delay');
-  const [delayHours, setDelayHours] = useState(3);
+  const [delayMinutesInput, setDelayMinutesInput] = useState(95);
   const [preview, setPreview] = useState<api.PropagationResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [smartText, setSmartText] = useState('');
   const [understood, setUnderstood] = useState<{ label: string; nodeId?: string } | null>(null);
 
-  const delayMinutes = DELAY_BASED_TYPES.has(selected) ? delayHours * 60 : undefined;
+  const delayMinutes = DELAY_BASED_TYPES.has(selected) ? delayMinutesInput : undefined;
 
   useEffect(() => {
     if (!open) return;
@@ -77,25 +79,26 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
     const isWeather = /storm|snow|fog|flood|cyclone|weather|monsoon|blizzard/.test(text);
     const type = isWeather ? 'weather-disruption' : text.includes('cancel') ? 'flight-cancellation' : text.includes('miss') && text.includes('connection') ? 'missed-connection' : text.includes('hotel') ? 'hotel-conflict' : 'flight-delay';
     setSelected(type as DisruptionType['id']);
-    if (DELAY_BASED_TYPES.has(type)) setDelayHours(Math.max(1, Math.min(6, Math.round(minutes / 60))));
-    setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${Math.round(minutes/60)}h` : 'Disruption detected'}` : `${type.replaceAll('-', ' ')} · ${Math.round(minutes/60)}h`, nodeId: node?.id });
+    if (DELAY_BASED_TYPES.has(type)) setDelayMinutesInput(Math.max(15, Math.min(360, Math.round(minutes / 5) * 5)));
+    setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${minutes} min` : 'Disruption detected'}` : `${type.replace(/-/g, ' ')} · ${minutes} min`, nodeId: node?.id });
   };
 
   const handleTrigger = async () => {
     onClose();
     await triggerDisruption(selected, { delayMinutes, primaryNodeId: understood?.nodeId });
+    navigate('recovery');
   };
 
   const affectedCount = preview ? preview.impacts.filter((i) => i.status !== 'healthy').length : null;
 
   return (
-    <Modal open={open} onClose={onClose} title="Report a problem" subtitle="Tell SafarSathi what happened — we will translate it into a disruption." className="max-w-xl">
+    <Modal open={open} onClose={onClose} title="Simulate a disruption" subtitle="Describe what happened or pick a scenario - Safar Sathi previews the ripple effect before anything changes." className="max-w-xl">
       <div className="space-y-4">
         <div className="rounded-xl border border-safar-blue/20 bg-safar-blue/5 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-safar-blue">Smart reporting</div>
           <div className="mt-1 text-sm font-semibold text-slate-900">What happened?</div>
           <div className="mt-3 flex gap-2">
-            <textarea value={smartText} onChange={(e)=>{setSmartText(e.target.value);setUnderstood(null)}} rows={2} placeholder="e.g. My Mumbai to Delhi flight is delayed by 3 hours." className="min-h-20 flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-safar-blue focus:outline-none"/>
+            <textarea value={smartText} onChange={(e)=>{setSmartText(e.target.value);setUnderstood(null)}} rows={2} placeholder="e.g. My Mumbai to Delhi flight is delayed by 95 minutes." className="min-h-20 flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-safar-blue focus:outline-none"/>
             <button onClick={analyzeSmartReport} disabled={!smartText.trim()} className="self-end rounded-xl bg-safar-blue px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Analyze</button>
           </div>
           {understood && <div className="mt-3 rounded-lg border border-safar-safe/20 bg-white p-3 text-xs"><div className="font-semibold text-slate-900">I understood</div><div className="mt-1 text-slate-600">{understood.label}</div><div className="mt-2 text-[10px] text-slate-500">Review the details below before confirming.</div></div>}
@@ -129,19 +132,21 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
           <div className="rounded-lg border border-slate-200 bg-white p-4 animate-fade-in">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-slate-900">Delay by</span>
-              <span className="text-lg font-bold text-safar-blue">{delayHours}h</span>
+              <span className="text-lg font-bold text-safar-blue">{delayMinutesInput} min</span>
             </div>
             <input
               type="range"
-              min={1}
-              max={6}
-              value={delayHours}
-              onChange={(e) => setDelayHours(Number(e.target.value))}
+              min={15}
+              max={360}
+              step={5}
+              value={delayMinutesInput}
+              onChange={(e) => setDelayMinutesInput(Number(e.target.value))}
+              aria-label="Delay in minutes"
               className="w-full" style={{ accentColor: '#2563EB' }}
             />
             <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
-              <span>1h</span>
-              <span>3h (recommended demo)</span>
+              <span>15 min</span>
+              <span>95 min (demo scenario)</span>
               <span>6h</span>
             </div>
           </div>
@@ -167,14 +172,14 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
               </div>
             </div>
           ) : (
-            <div className="text-xs text-slate-500">Could not reach the backend to preview this scenario.</div>
+            <div className="text-xs text-slate-500">Preview unavailable right now - you can still apply the scenario.</div>
           )}
         </div>
 
         <div className="flex items-center gap-2 rounded-lg bg-safar-risk/5 border border-safar-risk/20 p-3">
           <AlertTriangle className="h-4 w-4 shrink-0 text-safar-risk" />
           <p className="text-[11px] text-slate-700">
-            This will trigger the disruption cascade animation and generate recovery strategies from the backend.
+            Confirming applies this disruption to your trip, runs impact propagation, and prepares recovery options. You can reset the journey afterwards.
           </p>
         </div>
 

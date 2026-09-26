@@ -1,28 +1,32 @@
 import type { NodeStatus } from '@/types';
-import { statusColors, statusLabel } from '@/lib/status';
+import { statusLabel, statusTone, toneClasses } from '@/lib/status';
 import { cn } from '@/lib/utils';
+import { AlertTriangle, CheckCircle2, CircleAlert, Clock3, RotateCcw, XCircle } from 'lucide-react';
 
 interface StatusBadgeProps {
   status: NodeStatus;
   size?: 'sm' | 'md';
+  /** Overrides the default label (e.g. "Departed", "Confirmed"). */
+  label?: string;
   className?: string;
 }
 
-export function StatusBadge({ status, size = 'sm', className }: StatusBadgeProps) {
-  const c = statusColors[status];
+const icons: Record<NodeStatus, typeof CheckCircle2> = {
+  healthy: CheckCircle2,
+  'at-risk': AlertTriangle,
+  delayed: Clock3,
+  broken: CircleAlert,
+  cancelled: XCircle,
+  recovered: RotateCcw,
+};
+
+export function StatusBadge({ status, size = 'sm', label, className }: StatusBadgeProps) {
+  const Icon = icons[status];
+  const tone = toneClasses[statusTone[status]];
   return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border font-medium',
-        c.text,
-        c.bg,
-        c.border,
-        size === 'sm' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs',
-        className
-      )}
-    >
-      <span className={cn('h-1.5 w-1.5 rounded-full', c.dot, status === 'broken' && 'animate-pulse-soft')} />
-      {statusLabel[status]}
+    <span className={cn('pill', tone.pill, size === 'md' && 'px-3 py-1.5 text-xs', className)}>
+      <Icon className={cn('h-3.5 w-3.5 shrink-0', status === 'broken' && 'animate-pulse-soft')} aria-hidden="true" />
+      {label ?? statusLabel[status]}
     </span>
   );
 }

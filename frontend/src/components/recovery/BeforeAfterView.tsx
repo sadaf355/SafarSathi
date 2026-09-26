@@ -1,11 +1,12 @@
 import { useApp } from '@/store/AppContext';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDuration, statusColors } from '@/lib/status';
-import { Check, ArrowRight, GitCompare, Plane, Timer, Car, Bed, Mountain, MapPin } from 'lucide-react';
+import { Check, ArrowRight, GitCompare, Plane, Timer, Car, Bed, Mountain, MapPin, TrainFront } from 'lucide-react';
 import type { ItineraryNodeData, NodeCategory } from '@/types';
 
 const categoryIconMap: Record<NodeCategory, typeof Plane> = {
   flight: Plane,
+  train: TrainFront,
   connection: Timer,
   transfer: Car,
   hotel: Bed,
@@ -47,7 +48,7 @@ export function BeforeAfterView() {
       </div>
 
       {appliedRecovery && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="card p-5">
           <h3 className="text-sm font-semibold text-slate-900 mb-3">What Changed</h3>
           <div className="space-y-2">
             {appliedRecovery.changes.map((change, i) => (
@@ -75,7 +76,7 @@ export function BeforeAfterView() {
 
 function BeforeColumn({ nodes }: { nodes: ItineraryNodeData[] }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="card p-5">
       <div className="mb-4 flex items-center gap-2">
         <span className="rounded-md border border-slate-300 bg-white/60 px-2 py-0.5 text-[10px] font-bold tracking-wider text-slate-700">BEFORE DISRUPTION</span>
       </div>
@@ -104,7 +105,7 @@ function AfterColumn({ nodes, appliedRecovery }: { nodes: ItineraryNodeData[]; a
   const changeMap = new Map(appliedRecovery?.changes.map((c) => [c.nodeId, c.changeType]));
 
   return (
-    <div className="rounded-xl border border-safar-blue/20 bg-safar-blue/5 p-5">
+    <div className="rounded-card border border-brand/20 bg-brand-light/50 p-5">
       <div className="mb-4 flex items-center gap-2">
         <span className="rounded-md border border-safar-blue/30 bg-safar-blue/10 px-2 py-0.5 text-[10px] font-bold tracking-wider text-safar-blue">AFTER RECOVERY</span>
       </div>

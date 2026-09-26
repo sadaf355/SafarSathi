@@ -1,11 +1,12 @@
 import { memo } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
-import { Plane, Timer, Car, Bed, Mountain, MapPin } from 'lucide-react';
+import { Plane, Timer, Car, Bed, Mountain, MapPin, TrainFront } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { statusColors, delayLabel } from '@/lib/status';
 import type { ItineraryNodeData, NodeCategory } from '@/types';
 
 const iconMap: Record<NodeCategory, typeof Plane> = {
+  train: TrainFront,
   flight: Plane,
   connection: Timer,
   transfer: Car,

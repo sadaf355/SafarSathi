@@ -1,11 +1,15 @@
 import { useState, type FormEvent } from 'react';
-import { LifeBuoy, Loader2 } from 'lucide-react';
+import { Loader2, Sparkles, WifiOff } from 'lucide-react';
 import { useAuth } from '@/store/AuthContext';
+import { Logo, ScriptTagline } from '@/components/brand/Logo';
+import { sceneImages } from '@/lib/destinationImages';
+import { cn } from '@/lib/utils';
 
 type Mode = 'login' | 'register';
 
+/** Sign-in: backend account, the seeded demo traveler, or a fully offline demo. */
 export function LoginScreen() {
-  const { loginWithPassword, registerAccount, continueAsDemo, busy, error, wakingServer } = useAuth();
+  const { loginWithPassword, registerAccount, continueAsDemo, continueOffline, busy, error, offline, wakingServer } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -13,114 +17,77 @@ export function LoginScreen() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (mode === 'login') {
-      loginWithPassword(email, password).catch(() => {});
-    } else {
-      registerAccount(name, email, password).catch(() => {});
-    }
+    const action = mode === 'login' ? loginWithPassword(email, password) : registerAccount(name, email, password);
+    action.catch(() => {});
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-safar-blue to-safar-blue shadow-card">
-            <LifeBuoy className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <div className="text-lg font-bold tracking-tight text-slate-900">SafarSathi</div>
-            <div className="text-xs text-slate-600">Intelligent Travel Disruption Recovery</div>
-          </div>
+    <div className="flex min-h-screen bg-canvas">
+      <div className="relative hidden flex-1 overflow-hidden lg:block">
+        <img src={sceneImages.heroIndiaGate} alt="India Gate at sunset" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 p-12 text-white">
+          <h1 className="max-w-lg font-display text-4xl font-extrabold leading-tight">Your journey, always with you.</h1>
+          <p className="mt-3 max-w-md text-white/85">Safar Sathi monitors every leg of your trip, detects disruptions, and prepares recovery options before you have to ask.</p>
+          <ScriptTagline lines={['Same Destinations.', 'Fewer Disruptions.']} className="mt-6 text-3xl text-white/90" />
         </div>
+      </div>
 
-        <div className="glass rounded-xl p-5">
-          <div className="mb-4 flex gap-1 rounded-lg bg-slate-50 p-1">
-            <button
-              type="button"
-              onClick={() => setMode('login')}
-              className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
-                mode === 'login' ? 'bg-white text-slate-900 shadow-card' : 'text-slate-600 hover:text-slate-800'
-              }`}
-            >
-              Log In
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('register')}
-              className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
-                mode === 'register' ? 'bg-white text-slate-900 shadow-card' : 'text-slate-600 hover:text-slate-800'
-              }`}
-            >
-              Create Account
-            </button>
+      <div className="flex w-full items-center justify-center px-4 py-10 lg:w-[520px]">
+        <div className="w-full max-w-sm">
+          <Logo className="mb-8" />
+          <h2 className="font-display text-2xl font-bold text-ink">{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
+          <p className="mt-1 text-sm text-ink-muted">Sign in to see your trips and live disruption updates.</p>
+
+          <div className="mt-6 flex gap-1 rounded-xl border border-line bg-white p-1">
+            {(['login', 'register'] as const).map((m) => (
+              <button key={m} type="button" onClick={() => setMode(m)} className={cn('flex-1 rounded-lg py-2 text-sm font-semibold transition', mode === m ? 'bg-brand text-white shadow-glow' : 'text-ink-soft hover:bg-canvas')}>
+                {m === 'login' ? 'Log In' : 'Create Account'}
+              </button>
+            ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form onSubmit={handleSubmit} className="mt-5 space-y-3">
             {mode === 'register' && (
               <div>
-                <label className="mb-1 block text-[10px] text-slate-500">Full name</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-safar-blue/50 focus:outline-none"
-                />
+                <label htmlFor="name" className="mb-1 block text-xs font-medium text-ink-soft">Full name</label>
+                <input id="name" type="text" required value={name} onChange={(e) => setName(e.target.value)} className="field" autoComplete="name" />
               </div>
             )}
             <div>
-              <label className="mb-1 block text-[10px] text-slate-500">Email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-safar-blue/50 focus:outline-none"
-              />
+              <label htmlFor="email" className="mb-1 block text-xs font-medium text-ink-soft">Email</label>
+              <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="field" autoComplete="email" />
             </div>
             <div>
-              <label className="mb-1 block text-[10px] text-slate-500">Password</label>
-              <input
-                type="password"
-                required
-                minLength={1}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-safar-blue/50 focus:outline-none"
-              />
+              <label htmlFor="password" className="mb-1 block text-xs font-medium text-ink-soft">Password</label>
+              <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="field" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
             </div>
 
-            {wakingServer && !error && (
-              <p className="text-xs text-slate-600">
-                Waking up the SafarSathi server — this can take up to a minute on the first request.
-              </p>
+            {wakingServer && !error && <p className="text-xs text-ink-muted">Waking up the Safar Sathi server — the first request can take up to a minute.</p>}
+            {error && (
+              <div role="alert" className="rounded-xl border border-danger/20 bg-danger-light/60 p-3 text-xs text-danger">
+                {error}
+                {offline && <div className="mt-1 text-ink-soft">The backend isn't reachable. You can still explore Safar Sathi with offline demo data.</div>}
+              </div>
             )}
-            {error && <p className="text-xs text-safar-broken">{error}</p>}
 
-            <button
-              type="submit"
-              disabled={busy}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-safar-blue to-safar-blue py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
-            >
-              {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            <button type="submit" disabled={busy} className="btn-primary w-full py-3">
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
               {mode === 'login' ? 'Log In' : 'Create Account'}
             </button>
           </form>
 
-          <div className="my-4 flex items-center gap-2">
-            <div className="h-px flex-1 bg-slate-200" />
-            <span className="text-[10px] text-slate-500">OR</span>
-            <div className="h-px flex-1 bg-slate-200" />
-          </div>
+          <div className="my-5 flex items-center gap-3 text-xs text-ink-faint"><div className="h-px flex-1 bg-line" />OR<div className="h-px flex-1 bg-line" /></div>
 
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => continueAsDemo().catch(() => {})}
-            className="w-full rounded-lg border border-slate-300 py-2 text-xs font-medium text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
-          >
-            Continue as Demo Traveler (Aisha Khan)
-          </button>
+          <div className="space-y-2">
+            <button type="button" disabled={busy} onClick={() => continueAsDemo().catch(() => {})} className="btn-outline w-full py-3">
+              <Sparkles className="h-4 w-4" /> Continue as Demo Traveler
+            </button>
+            <button type="button" disabled={busy} onClick={() => continueOffline()} className={cn('btn w-full py-3', offline ? 'bg-ai text-white hover:brightness-110' : 'border border-line bg-white text-ink-soft hover:bg-canvas')}>
+              <WifiOff className="h-4 w-4" /> Explore offline demo
+            </button>
+            <p className="pt-1 text-center text-[11px] leading-relaxed text-ink-muted">The offline demo runs entirely in your browser with sample trips — no account or backend needed.</p>
+          </div>
         </div>
       </div>
     </div>

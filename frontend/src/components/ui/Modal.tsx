@@ -67,7 +67,7 @@ export function Modal({ open, onClose, children, className, title, subtitle }: M
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-fade-in" onClick={onClose} />
+      <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm animate-fade-in" onClick={onClose} />
       <div
         ref={dialogRef}
         role="dialog"
@@ -75,22 +75,22 @@ export function Modal({ open, onClose, children, className, title, subtitle }: M
         aria-label={title}
         tabIndex={-1}
         className={cn(
-          'relative z-10 w-full max-w-lg glass-strong rounded-2xl shadow-2xl animate-scale-in outline-none',
+          'relative z-10 flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-card border border-line bg-white shadow-lift animate-scale-in outline-none',
           className
         )}
       >
         {(title || subtitle) && (
-          <div className="flex items-start justify-between border-b border-slate-200 p-5">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-line p-5">
             <div>
-              {title && <h2 className="text-lg font-semibold text-slate-900">{title}</h2>}
-              {subtitle && <p className="mt-1 text-sm text-slate-600">{subtitle}</p>}
+              {title && <h2 className="font-display text-lg font-bold text-ink">{title}</h2>}
+              {subtitle && <p className="mt-1 text-sm text-ink-muted">{subtitle}</p>}
             </div>
-            <button onClick={onClose} className="rounded-lg p-1.5 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900" aria-label="Close">
+            <button onClick={onClose} className="shrink-0 rounded-lg p-1.5 text-ink-muted transition hover:bg-canvas hover:text-ink" aria-label="Close">
               <X className="h-5 w-5" />
             </button>
           </div>
         )}
-        <div className="p-5">{children}</div>
+        <div className="min-h-0 overflow-y-auto p-5 scrollbar-thin">{children}</div>
       </div>
     </div>,
     document.body

@@ -5,6 +5,9 @@ import { fileURLToPath, URL } from 'node:url';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // Static hosts that serve the app from a sub-path (e.g. GitHub Pages at
+  // /<repo>/) set VITE_BASE_PATH at build time; everything else uses '/'.
+  base: process.env.VITE_BASE_PATH ?? '/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -13,6 +16,17 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['lucide-react'],
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          map: ['leaflet', 'react-leaflet'],
+          graph: ['reactflow'],
+        },
+      },
+    },
   },
   test: {
     environment: 'jsdom',

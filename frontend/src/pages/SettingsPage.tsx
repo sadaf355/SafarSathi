@@ -4,10 +4,11 @@ import { useLocalStorageState } from '@/lib/useLocalStorageState';
 import { cn } from '@/lib/utils';
 import type { TravelerPreferences } from '@/types';
 import { Sliders, Bell, Shield, Lock, Link2, Plane } from 'lucide-react';
-import { PageHeader } from '@/components/ui/PageHeader';
+import { PageHero } from '@/components/layout/PageHero';
 
-export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => void }) {
-  const { preferences, setPreferences } = useApp();
+export function SettingsPage() {
+  const { preferences, setPreferences, trip } = useApp();
+  const providers = Array.from(new Set(trip.nodes.filter((n) => n.category !== 'connection').map((n) => n.provider)));
   const { profile } = useAuth();
   const [notifPrefs, setNotifPrefs] = useLocalStorageState('safarsathi.settings.notifications', {
     highRisk: true,
@@ -34,11 +35,12 @@ export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => vo
   };
 
   return (
-    <div className="max-w-3xl">
-      <PageHeader title="Preferences" description="Control how SafarSathi ranks recovery plans and alerts you." crumbs={['More','Preferences']} onNavigate={onNavigate} />
+    <div className="animate-fade-in">
+      <PageHero title="Settings" subtitle="Control how Safar Sathi ranks recovery plans and alerts you." />
+      <div className="relative z-10 grid grid-cols-1 gap-5 lg:grid-cols-2">
 
-      <SettingsSection icon={<Plane className="h-4 w-4 text-safar-blue" />} title="Traveler Preferences">
-        <p className="mb-3 text-[11px] text-slate-500">
+      <SettingsSection icon={<Plane className="h-4 w-4 text-brand" />} title="Traveler Preferences">
+        <p className="mb-3 text-[11px] text-ink-muted">
           Profile editing isn't available yet - shown read-only from your account.
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -49,7 +51,7 @@ export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => vo
         </div>
       </SettingsSection>
 
-      <SettingsSection icon={<Sliders className="h-4 w-4 text-safar-blue" />} title="Recovery Preferences">
+      <SettingsSection icon={<Sliders className="h-4 w-4 text-brand" />} title="Recovery Preferences">
         <div className="space-y-4">
           <SliderControl
             label="Cost vs Speed"
@@ -67,7 +69,7 @@ export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => vo
           />
 
           <div>
-            <div className="text-xs font-medium text-slate-900 mb-2">Recovery priorities</div>
+            <div className="text-xs font-medium text-ink mb-2">Recovery priorities</div>
             <div className="grid grid-cols-2 gap-2">
               <Toggle
                 label="Minimize cost"
@@ -94,8 +96,8 @@ export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => vo
         </div>
       </SettingsSection>
 
-      <SettingsSection icon={<Bell className="h-4 w-4 text-safar-blue" />} title="Notification Preferences">
-        <p className="mb-3 text-[11px] text-slate-500">Saved on this device only.</p>
+      <SettingsSection icon={<Bell className="h-4 w-4 text-brand" />} title="Notification Preferences">
+        <p className="mb-3 text-[11px] text-ink-muted">Saved on this device only.</p>
         <div className="space-y-2">
           <Toggle label="High-risk alerts" checked={notifPrefs.highRisk} onChange={(v) => setNotifPrefs(p => ({ ...p, highRisk: v }))} />
           <Toggle label="Recovery ready notifications" checked={notifPrefs.recoveryReady} onChange={(v) => setNotifPrefs(p => ({ ...p, recoveryReady: v }))} />
@@ -105,9 +107,9 @@ export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => vo
         </div>
       </SettingsSection>
 
-      <SettingsSection icon={<Shield className="h-4 w-4 text-safar-blue" />} title="Risk Thresholds">
-        <p className="mb-3 text-[11px] text-slate-500">
-          Saved on this device only - controls when Risk Intelligence highlights a node, not the underlying risk calculation.
+      <SettingsSection icon={<Shield className="h-4 w-4 text-brand" />} title="Risk Thresholds">
+        <p className="mb-3 text-[11px] text-ink-muted">
+          Saved on this device only - controls when Live Updates highlights a booking, not the underlying risk calculation.
         </p>
         <div className="space-y-4">
           <SliderControl label="Connection risk alert threshold" leftLabel="Low" rightLabel="High" value={riskThresholds.connection} onChange={(v) => setRiskThresholds(p => ({ ...p, connection: v }))} />
@@ -115,7 +117,7 @@ export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => vo
         </div>
       </SettingsSection>
 
-      <SettingsSection icon={<Lock className="h-4 w-4 text-safar-blue" />} title="Data & Privacy">
+      <SettingsSection icon={<Lock className="h-4 w-4 text-brand" />} title="Data & Privacy">
         <div className="space-y-2">
           <Toggle label="Share itinerary data for AI improvement" checked={privacyPrefs.shareData} onChange={(v) => setPrivacyPrefs(p => ({ ...p, shareData: v }))} />
           <Toggle label="Allow provider integrations" checked={privacyPrefs.providerIntegrations} onChange={(v) => setPrivacyPrefs(p => ({ ...p, providerIntegrations: v }))} />
@@ -123,25 +125,23 @@ export function SettingsPage({ onNavigate }: { onNavigate?: (page: string) => vo
         </div>
       </SettingsSection>
 
-      <SettingsSection icon={<Link2 className="h-4 w-4 text-safar-blue" />} title="Connected Providers">
+      <SettingsSection icon={<Link2 className="h-4 w-4 text-brand" />} title="Monitored Providers">
         <div className="space-y-2">
-          <ProviderRow name="IndiGo" connected={true} />
-          <ProviderRow name="Go First" connected={true} />
-          <ProviderRow name="MakeMyTrip" connected={true} />
-          <ProviderRow name="Grand Dragon Ladakh" connected={false} />
-          <ProviderRow name="Ladakh Adventures" connected={true} />
+          {providers.length === 0 && <p className="text-xs text-ink-muted">Providers appear here once this trip has bookings.</p>}
+          {providers.map((name) => <ProviderRow key={name} name={name} connected />)}
         </div>
       </SettingsSection>
+      </div>
     </div>
   );
 }
 
 function SettingsSection({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <div className="glass rounded-xl p-5">
+    <div className="card p-5">
       <div className="flex items-center gap-2 mb-4">
         {icon}
-        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        <h2 className="text-sm font-semibold text-ink">{title}</h2>
       </div>
       {children}
     </div>
@@ -151,12 +151,12 @@ function SettingsSection({ icon, title, children }: { icon: React.ReactNode; tit
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] text-slate-500 mb-1">{label}</div>
+      <div className="text-[10px] text-ink-muted mb-1">{label}</div>
       <input
         type="text"
         value={value}
         readOnly
-        className="w-full cursor-default rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none"
+        className="w-full cursor-default rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-ink-soft focus:outline-none"
       />
     </div>
   );
@@ -165,9 +165,9 @@ function Field({ label, value }: { label: string; value: string }) {
 function SliderControl({ label, leftLabel, rightLabel, value, onChange }: { label: string; leftLabel: string; rightLabel: string; value: number; onChange: (v: number) => void }) {
   return (
     <div>
-      <div className="text-xs font-medium text-slate-900 mb-2">{label}</div>
+      <div className="text-xs font-medium text-ink mb-2">{label}</div>
       <input type="range" min={0} max={100} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full" style={{ accentColor: '#2563EB' }} />
-      <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500">
+      <div className="mt-1 flex items-center justify-between text-[10px] text-ink-muted">
         <span>{leftLabel}</span>
         <span>{rightLabel}</span>
       </div>
@@ -179,9 +179,9 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   return (
     <button
       onClick={() => onChange(!checked)}
-      className="flex items-center justify-between rounded-lg border border-slate-200 bg-white/60 p-3 transition hover:bg-slate-50"
+      className="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-white p-3 text-left transition hover:bg-canvas"
     >
-      <span className="text-xs text-slate-800">{label}</span>
+      <span className="text-xs text-ink-soft">{label}</span>
       <span className={cn(
         'relative h-5 w-9 rounded-full transition',
         checked ? 'bg-safar-blue' : 'bg-slate-300'
@@ -198,13 +198,13 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 function ProviderRow({ name, connected }: { name: string; connected: boolean }) {
   return (
     <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white/60 p-3">
-      <span className="text-xs text-slate-800">{name}</span>
+      <span className="text-xs text-ink-soft">{name}</span>
       <span className={cn(
         'flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium',
         connected ? 'bg-safar-safe/10 text-safar-safe' : 'bg-slate-500/10 text-slate-600'
       )}>
         <span className={cn('h-1.5 w-1.5 rounded-full', connected ? 'bg-safar-safe' : 'bg-slate-500')} />
-        {connected ? 'Connected' : 'Not connected'}
+        {connected ? 'Monitored' : 'Not monitored'}
       </span>
     </div>
   );

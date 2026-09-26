@@ -379,7 +379,14 @@ npm install
 copy .env.example .env.local
 npm run dev
 ```
-Frontend will be available at `http://localhost:5173`. Click **"Continue as Demo Traveler (Aisha Khan)"** to access the dashboard.
+Frontend will be available at `http://localhost:5173`. Click **"Continue as Demo Traveler"** to access the dashboard with the seeded backend trips.
+
+### 3. Safar Sathi frontend notes
+- **Screens** (hash routes, so deep links work on static hosting): `#/dashboard`, `#/bookings`, `#/live`, `#/recovery`, `#/assistant`, `#/trip`, `#/claims`, `#/settings`.
+- **Offline demo**: "Explore offline demo" on the sign-in screen runs the full UI against an in-browser data source (`src/services/demoBackend.ts`) that mirrors the API contract, with a Mumbai → Delhi → Agra trip already mid-disruption. Live sessions always use the real backend.
+- **Destination imagery**: `src/lib/destinationImages.ts` is the single registry; `<DestinationImage destination="Agra" />` resolves city → alias/airport code → country → generic fallback. Photos are bundled in `public/images` (from Unsplash, used under the Unsplash License).
+- **Environment**: `VITE_API_BASE_URL` (backend origin) and, for sub-path hosting such as GitHub Pages, `VITE_BASE_PATH` (e.g. `/SafarSathi/`) at build time. Add the deployed frontend origin to the backend's `CORS_ORIGINS`.
+- **Map tiles**: the world map uses Leaflet with Esri World Imagery tiles (attribution shown on the map).
 
 ## 32. Team / Author
 - **Author**: daanialmirza5

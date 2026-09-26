@@ -8,7 +8,7 @@ import { AlertTriangle, ShieldAlert, DollarSign, ArrowRight, GitBranch, CheckCir
 
 interface Props { fullPage?: boolean; onNavigate?: (page: string) => void; }
 export function ImpactAnalysisPanel({ fullPage = false, onNavigate }: Props) {
-  const { activeDisruption, trip, phase } = useApp();
+  const { activeDisruption, trip } = useApp();
   const [revealed, setRevealed] = useState(0); const [showGraph, setShowGraph] = useState(false);
   const steps = activeDisruption?.cascadeSteps ?? [];
   useEffect(() => { setRevealed(steps.length ? 1 : 0); if (steps.length < 2) return; const timers=steps.slice(1).map((_,i)=>window.setTimeout(()=>setRevealed(i+2),650*(i+1))); return()=>timers.forEach(clearTimeout); }, [activeDisruption?.id, steps.length]);

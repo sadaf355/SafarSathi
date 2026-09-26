@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { CountUp } from '@/components/ui/CountUp';
 
@@ -6,48 +7,42 @@ interface MetricCardProps {
   label: string;
   prefix?: string;
   suffix?: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   accent?: 'default' | 'green' | 'amber' | 'red' | 'cyan';
   animate?: boolean;
+  /** Secondary line under the label, e.g. "2 On Track | 1 Affected". */
+  sub?: ReactNode;
+  onClick?: () => void;
   className?: string;
 }
 
-export function MetricCard({ value, label, prefix, suffix, icon, accent = 'default', animate = true, className }: MetricCardProps) {
-  const accents = {
-    default: 'text-slate-900',
-    green: 'text-safar-safe',
-    amber: 'text-safar-risk',
-    red: 'text-safar-broken',
-    cyan: 'text-safar-blue',
-  };
-  const iconBadges = {
-    default: 'bg-slate-50 border-slate-300 text-slate-600',
-    green: 'bg-safar-safe/10 border-safar-safe/30 text-safar-safe',
-    amber: 'bg-safar-risk/10 border-safar-risk/30 text-safar-risk',
-    red: 'bg-safar-broken/10 border-safar-broken/30 text-safar-broken',
-    cyan: 'bg-safar-blue/10 border-safar-blue/30 text-safar-blue',
-  };
+const iconTiles = {
+  default: 'bg-canvas text-ink-muted',
+  green: 'bg-gradient-to-br from-[#22C55E] to-[#16A34A] text-white shadow-[0_8px_18px_-8px_rgba(22,163,74,.7)] text-safar-safe',
+  amber: 'bg-gradient-to-br from-[#FFE7C2] to-[#FFD699] text-risk-dark',
+  red: 'bg-gradient-to-br from-[#FFE1E1] to-[#FFCACA] text-danger',
+  cyan: 'bg-gradient-to-br from-[#E6EEFF] to-[#D3E1FF] text-brand',
+};
 
+export function MetricCard({ value, label, prefix = '', suffix = '', icon, accent = 'default', animate = true, sub, onClick, className }: MetricCardProps) {
+  const Wrapper = onClick ? 'button' : 'div';
   return (
-    <div
-      className={cn(
-        'glass rounded-xl p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-500/40 hover:shadow-lg',
-        className
-      )}
+    <Wrapper
+      onClick={onClick}
+      className={cn('card card-hover flex w-full items-center gap-3.5 p-4 text-left 2xl:gap-4 2xl:p-5', className)}
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <div className={cn('text-2xl font-bold tracking-tight', accents[accent])}>
-            {animate ? <CountUp value={value} prefix={prefix} suffix={suffix} /> : `${prefix}${value.toLocaleString('en-IN')}${suffix}`}
-          </div>
-          <div className="mt-1 text-xs text-slate-600">{label}</div>
+      {icon && (
+        <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl [&>svg]:h-6 [&>svg]:w-6 2xl:h-[60px] 2xl:w-[60px] 2xl:[&>svg]:h-7 2xl:[&>svg]:w-7', iconTiles[accent], accent === 'green' && '[&>svg]:text-white')}>
+          {icon}
         </div>
-        {icon && (
-          <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border', iconBadges[accent])}>
-            {icon}
-          </div>
-        )}
+      )}
+      <div className="min-w-0">
+        <div className="whitespace-nowrap font-display text-[22px] font-extrabold leading-none tracking-tight text-ink 2xl:text-[26px]">
+          {animate ? <CountUp value={value} prefix={prefix} suffix={suffix} /> : `${prefix}${value.toLocaleString('en-IN')}${suffix}`}
+        </div>
+        <div className="mt-1.5 text-[13px] font-medium leading-snug text-ink-soft 2xl:text-sm">{label}</div>
+        {sub && <div className="mt-1 text-xs leading-snug text-ink-muted">{sub}</div>}
       </div>
-    </div>
+    </Wrapper>
   );
 }
