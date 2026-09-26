@@ -62,6 +62,6 @@ def extract_disruption(
     """Parse an airline SMS / email into a structured disruption request. With
     a trip id, the disrupted booking is matched against that trip's itinerary."""
     try:
-        return assistant_service.extract_disruption(db, payload.text, payload.trip_id, traveler_id)
+        return assistant_service.extract_disruption(db, payload.text, payload.trip_id, traveler_id, payload.nodes)
     except trip_service.TripNotFoundError:
         raise HTTPException(status_code=404, detail=f"Trip '{payload.trip_id}' not found")

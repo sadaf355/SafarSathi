@@ -3,7 +3,7 @@
 import asyncio
 import json
 import logging
-from datetime import date, datetime
+from datetime import datetime
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -13,9 +13,10 @@ from sqlalchemy.pool import StaticPool
 from app.core import logging as app_logging
 from app.database.base import Base
 from app.database.seed import seed_if_empty
-from app.models.enums import SnapshotType
+from app.models.enums import SnapshotType, TripStatus
 from app.models.notification import Notification
 from app.models.risk import RiskSnapshot
+from app.models.trip import Trip
 from app.providers.weather_provider import WeatherSnapshot
 from app.services import risk_prediction_service, risk_service
 
@@ -34,41 +35,44 @@ def session_factory(monkeypatch):
     return factory
 
 
-def test_cycle_snapshots_active_trips_only(session_factory):
+def test_cycle_baselines_every_unrecovered_trip(session_factory):
     db = session_factory()
-    # Seeded trips run Sep 2025 - Feb 2026: on 1 Jan 2026 Ladakh has ended, Goa and Rajasthan haven't.
-    summary = risk_prediction_service.run_risk_prediction_cycle(db, today=date(2026, 1, 1))
-    assert summary == {"scanned": 2, "updated": 2, "alerts": summary["alerts"], "failed": 0}
+    db.get(Trip, "trip-goa-2026").status = TripStatus.RECOVERED
+    db.commit()
+    assert risk_prediction_service.run_risk_prediction_cycle(db) == []  # first reading is a baseline
     trip_rows = db.scalars(select(RiskSnapshot).where(RiskSnapshot.snapshot_type == SnapshotType.TRIP)).all()
-    assert sorted(r.trip_id for r in trip_rows) == ["trip-goa-2026", "trip-rajasthan-2026"]
+    assert sorted(r.trip_id for r in trip_rows) == ["trip-ladakh-2025", "trip-rajasthan-2026"]
 
 
-def test_cycle_replaces_previous_snapshots_and_alerts_once(session_factory):
+def test_unchanged_risk_raises_no_alerts(session_factory):
     db = session_factory()
-    risk_prediction_service.run_risk_prediction_cycle(db, today=date(2025, 1, 1))
+    risk_prediction_service.run_risk_prediction_cycle(db)
     first = db.query(RiskSnapshot).count()
-    first_alerts = db.query(Notification).filter(Notification.title.like("Rising risk:%")).count()
-    risk_prediction_service.run_risk_prediction_cycle(db, today=date(2025, 1, 1))
-    assert db.query(RiskSnapshot).count() == first  # replaced, not duplicated
-    assert db.query(Notification).filter(Notification.title.like("Rising risk:%")).count() == first_alerts
+    assert risk_prediction_service.run_risk_prediction_cycle(db) == []
+    assert db.query(RiskSnapshot).count() == 2 * first  # history is appended, latest wins
+    assert db.query(Notification).filter(Notification.title == "Risk level increased").count() == 0
 
 
 def test_one_failing_trip_does_not_stop_the_cycle(session_factory, monkeypatch):
     real = risk_prediction_service.predict_trip
+    seen = []
 
     def flaky(db, trip):
+        seen.append(trip.id)
         if trip.id == "trip-goa-2026":
             raise RuntimeError("boom")
         return real(db, trip)
 
     monkeypatch.setattr(risk_prediction_service, "predict_trip", flaky)
-    summary = risk_prediction_service.run_risk_prediction_cycle(session_factory(), today=date(2025, 1, 1))
-    assert summary["failed"] == 1 and summary["updated"] == 2
+    db = session_factory()
+    assert risk_prediction_service.run_risk_prediction_cycle(db) == []
+    assert len(seen) == 3
+    assert {r.trip_id for r in db.scalars(select(RiskSnapshot))} == {"trip-ladakh-2025", "trip-rajasthan-2026"}
 
 
 def test_loop_runs_and_stops_gracefully(session_factory, monkeypatch):
     calls = []
-    monkeypatch.setattr(risk_prediction_service, "run_risk_prediction_cycle", lambda db, today=None: calls.append(1))
+    monkeypatch.setattr(risk_prediction_service, "run_risk_prediction_cycle", lambda db, trip_id=None: calls.append(1))
 
     async def scenario():
         stop = asyncio.Event()

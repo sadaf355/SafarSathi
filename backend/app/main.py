@@ -103,6 +103,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 app.include_router(health.router)
 app.include_router(trips.router)
+app.include_router(trips.geocode_router)
 app.include_router(disruptions.router)
 app.include_router(recovery.router)
 app.include_router(assistant.router)

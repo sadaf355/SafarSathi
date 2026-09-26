@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.enums import TripStatus
 from app.models.trip import Trip
 
 
@@ -15,7 +16,7 @@ class TripRepository:
         return list(self.db.scalars(select(Trip)))
 
     def list_active(self) -> list[Trip]:
-        return self.list_all()
+        return list(self.db.scalars(select(Trip).where(Trip.status != TripStatus.RECOVERED)))
 
     def list_by_traveler(self, traveler_id: str) -> list[Trip]:
         return list(self.db.scalars(select(Trip).where(Trip.traveler_id == traveler_id)))

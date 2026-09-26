@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from app.config import Settings, get_settings
 from app.providers.amadeus_flight_provider import AmadeusFlightProvider
 from app.providers.base import ActivityProvider, FlightProvider, HotelProvider, TransferProvider
+from app.providers.fallback_flight_provider import FallbackFlightProvider
 from app.providers.mock_activity_provider import MockActivityProvider
 from app.providers.mock_flight_provider import MockFlightProvider
 from app.providers.mock_hotel_provider import MockHotelProvider
@@ -36,11 +37,13 @@ def get_flight_provider(settings: Settings | None = None) -> FlightProvider:
     settings = settings or get_settings()
     if settings.provider_mode == "live":
         if settings.amadeus_client_id and settings.amadeus_client_secret:
-            return AmadeusFlightProvider(
-                settings.amadeus_client_id,
-                settings.amadeus_client_secret,
-                base_url=settings.amadeus_base_url,
-                timeout_seconds=settings.provider_timeout_seconds,
+            return FallbackFlightProvider(
+                AmadeusFlightProvider(
+                    settings.amadeus_client_id,
+                    settings.amadeus_client_secret,
+                    settings.amadeus_base_url,
+                    timeout_seconds=settings.provider_timeout_seconds,
+                )
             )
         logger.warning("PROVIDER_MODE=live but AMADEUS_CLIENT_ID/SECRET are not set; using simulated flights.")
     return MockFlightProvider()

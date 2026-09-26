@@ -80,10 +80,11 @@ class TestEngineKwargsFor:
 class TestRiskPredictionSettings:
     def test_risk_prediction_settings_defaults(self):
         settings = _settings()
-        assert settings.risk_prediction_enabled is True
+        # Off by default: the scheduler makes weather calls, so deployments opt in.
+        assert settings.risk_prediction_enabled is False
         assert settings.risk_prediction_interval_minutes == 15
 
     def test_risk_prediction_settings_overrides(self):
-        settings = _settings(risk_prediction_enabled=False, risk_prediction_interval_minutes=30)
-        assert settings.risk_prediction_enabled is False
+        settings = _settings(risk_prediction_enabled=True, risk_prediction_interval_minutes=30)
+        assert settings.risk_prediction_enabled is True
         assert settings.risk_prediction_interval_minutes == 30

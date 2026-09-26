@@ -75,7 +75,7 @@ def _delay_minutes(text: str) -> tuple[int | None, str | None]:
 
 def _classify(lowered: str, has_delay: bool) -> tuple[str | None, str | None]:
     hotel = re.search(r"\b(hotel|room|check-?in|reservation|booking at|stay)\b", lowered)
-    if re.search(r"\b(cancel+ed|cancel+ation|cancelled|called off)\b", lowered):
+    if re.search(r"\b(cancel|cancels|cancel+ed|cancel+ation|cancelled|called off)\b", lowered):
         if hotel and not re.search(r"\bflight\b", lowered):
             return DisruptionType.HOTEL_CANCELLATION.value, "cancellation (hotel)"
         if re.search(r"\b(tour|activity|excursion|show|ticket)\b", lowered):
@@ -179,6 +179,23 @@ def match_node(extraction: Extraction, nodes: list) -> tuple[str | None, str | N
         candidates = [n for n in nodes if getattr(n.category, "value", n.category) == wanted_category]
         if len(candidates) == 1:
             return candidates[0].id, candidates[0].title, "only booking of that type"
+    return None, None, None
+
+
+DELAY_TYPES = {DisruptionType.FLIGHT_DELAY.value, DisruptionType.ACTIVITY_DELAY.value}
+# A delay notice without a duration still needs a number to simulate with.
+DEFAULT_DELAY_MINUTES = 180
+
+
+def match_mentioned_node(text: str, nodes: list) -> tuple[str | None, str | None, str | None]:
+    """Match client-supplied bookings by what the message actually mentions
+    (title, route label or provider) - no guessing by booking type."""
+    lowered = text.lower()
+    for field_name in ("title", "label", "provider"):
+        for n in nodes:
+            value = (getattr(n, field_name, None) or "").strip().lower()
+            if len(value) >= 3 and value in lowered:
+                return n.id, n.title, field_name
     return None, None, None
 
 

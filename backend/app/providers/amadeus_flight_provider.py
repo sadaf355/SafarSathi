@@ -1,162 +1,192 @@
-"""Live flight alternatives from the Amadeus Self-Service Flight Offers API.
+"""Amadeus Self-Service flight provider (live counterpart to MockFlightProvider).
 
-Used when PROVIDER_MODE=live and AMADEUS_CLIENT_ID/SECRET are set. Every call
-degrades gracefully to the simulated catalogue (MockFlightProvider) instead
-of failing a recovery request: missing credentials, auth errors, timeouts,
-HTTP errors, rate limits (429 pauses live calls for a cool-down) and empty
-results all fall back. Live options are tagged source="live" so the UI can
-tell travelers which prices are real.
+Selected by provider_factory.get_flight_provider() when PROVIDER_MODE=live and
+Amadeus credentials are configured. Every failure - HTTP error, timeout,
+malformed payload - surfaces as ProviderFailureError, the same exception the
+mock raises in its failure modes, so RecoveryEngine's existing handling
+(a "provider unavailable" plan instead of a crash) applies unchanged.
 """
 
 from __future__ import annotations
 
-import logging
-import threading
 import time
 from datetime import datetime, timedelta
+from typing import Any
 
 import httpx
 
-from app.providers.base import CancellationPolicy, FlightProvider, ProviderAlternative
-from app.providers.mock_flight_provider import MockFlightProvider
+from app.providers.base import CancellationPolicy, FlightProvider, ProviderAlternative, ProviderFailureError
 
-logger = logging.getLogger("triprescue.providers.amadeus")
+# Conservative defaults: Amadeus flight offers (especially sandbox data) don't
+# reliably carry refund/cancellation terms, so every offer is treated as
+# non-refundable until a richer fare-rules data source is wired in. This can
+# only understate recovery value, never promise a refund that doesn't exist.
+_DEFAULT_REFUNDABLE = False
+_DEFAULT_REFUND_PERCENTAGE = 0.0
+_DEFAULT_CANCELLATION_DEADLINE_HOURS = 24
 
-PREMIUM_CABINS = {"BUSINESS", "FIRST", "PREMIUM_ECONOMY"}
-RATE_LIMIT_COOLDOWN_SECONDS = 60
+_PREMIUM_CABINS = {"PREMIUM_ECONOMY", "BUSINESS", "FIRST"}
+
+# Refresh the OAuth token this many seconds before Amadeus says it expires, so
+# a request never goes out with a token that lapses in flight.
+_TOKEN_EXPIRY_MARGIN_SECONDS = 60
 
 
 class AmadeusFlightProvider(FlightProvider):
+    TOKEN_PATH = "/v1/security/oauth2/token"
+    FLIGHT_OFFERS_PATH = "/v2/shopping/flight-offers"
+    # The whole app displays costs in rupees; without this Amadeus prices in EUR.
+    CURRENCY = "INR"
+
     def __init__(
         self,
-        client_id: str | None,
-        client_secret: str | None,
-        base_url: str = "https://test.api.amadeus.com",
-        timeout_seconds: float = 6.0,
-        fallback: FlightProvider | None = None,
-        http_client: httpx.Client | None = None,
+        client_id: str,
+        client_secret: str,
+        base_url: str,
+        timeout_seconds: float = 5.0,
+        client: httpx.Client | None = None,
     ):
-        self.client_id = client_id
-        self.client_secret = client_secret
+        """`client` is injectable for tests (httpx.MockTransport), matching
+        OpenMeteoWeatherProvider."""
+        self._client_id = client_id
+        self._client_secret = client_secret
         self.base_url = base_url.rstrip("/")
-        self.fallback = fallback or MockFlightProvider()
-        self._http = http_client or httpx.Client(timeout=timeout_seconds)
+        self.timeout_seconds = timeout_seconds
+        self._client = client
         self._token: str | None = None
         self._token_expires_at = 0.0
-        self._paused_until = 0.0
-        self._lock = threading.Lock()
 
-    @property
-    def configured(self) -> bool:
-        return bool(self.client_id and self.client_secret)
+    def _fail(self, reason: str, kind: str = "error") -> ProviderFailureError:
+        return ProviderFailureError(self.__class__.__name__, reason, kind)
 
-    # ---- API plumbing ---------------------------------------------------------------
+    def _send(self, method: str, path: str, **kwargs: Any) -> Any:
+        url = f"{self.base_url}{path}"
+        try:
+            if self._client is not None:
+                response = self._client.request(method, url, timeout=self.timeout_seconds, **kwargs)
+            else:
+                response = httpx.request(method, url, timeout=self.timeout_seconds, **kwargs)
+            if response.status_code == 401:
+                # Token revoked/expired early - drop it so the next call re-authenticates.
+                self._token = None
+            response.raise_for_status()
+            return response.json()
+        except httpx.TimeoutException as exc:
+            raise self._fail("provider request timed out", "timeout") from exc
+        except httpx.HTTPStatusError as exc:
+            raise self._fail(f"Amadeus returned HTTP {exc.response.status_code}") from exc
+        except httpx.HTTPError as exc:
+            raise self._fail(f"could not reach Amadeus ({exc.__class__.__name__})") from exc
+        except ValueError as exc:
+            raise self._fail("Amadeus returned a non-JSON response") from exc
 
     def _access_token(self) -> str:
-        with self._lock:
-            if self._token and time.monotonic() < self._token_expires_at - 30:
-                return self._token
-            resp = self._http.post(
-                f"{self.base_url}/v1/security/oauth2/token",
-                data={"grant_type": "client_credentials", "client_id": self.client_id, "client_secret": self.client_secret},
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-            resp.raise_for_status()
-            body = resp.json()
-            self._token = body["access_token"]
-            self._token_expires_at = time.monotonic() + float(body.get("expires_in", 1799))
+        if self._token and time.monotonic() < self._token_expires_at:
             return self._token
+        data = self._send(
+            "POST",
+            self.TOKEN_PATH,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": self._client_id,
+                "client_secret": self._client_secret,
+            },
+        )
+        try:
+            token = str(data["access_token"])
+            expires_in = float(data.get("expires_in", 0))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise self._fail("Amadeus token response was malformed") from exc
+        self._token = token
+        self._token_expires_at = time.monotonic() + max(expires_in - _TOKEN_EXPIRY_MARGIN_SECONDS, 0)
+        return token
 
-    def _search_live(self, origin: str, destination: str, day: datetime) -> list[ProviderAlternative]:
-        resp = self._http.get(
-            f"{self.base_url}/v2/shopping/flight-offers",
+    def _parse_offer(self, offer: dict[str, Any]) -> ProviderAlternative:
+        segments = offer["itineraries"][0]["segments"]
+        first, last = segments[0], segments[-1]
+        flight_numbers = "/".join(f"{s['carrierCode']}-{s['number']}" for s in segments)
+        departure = datetime.fromisoformat(first["departure"]["at"])
+        cabins = {
+            detail.get("cabin")
+            for pricing in offer.get("travelerPricings") or []
+            for detail in pricing.get("fareDetailsBySegment") or []
+        }
+        return ProviderAlternative(
+            # Offer ids ("1", "2", ...) are only unique within one response, so
+            # derive a stable id from the flight itself.
+            id=f"flight-{flight_numbers.lower()}-{departure:%Y%m%d%H%M}",
+            provider=first["carrierCode"],
+            confirmation_hint=flight_numbers,
+            origin=first["departure"]["iataCode"],
+            destination=last["arrival"]["iataCode"],
+            departure=departure,
+            arrival=datetime.fromisoformat(last["arrival"]["at"]),
+            cost=float(offer["price"]["total"]),
+            tier="premium" if cabins & _PREMIUM_CABINS else "standard",
+            refundable=_DEFAULT_REFUNDABLE,
+            refund_percentage=_DEFAULT_REFUND_PERCENTAGE,
+            cancellation_deadline_hours=_DEFAULT_CANCELLATION_DEADLINE_HOURS,
+        )
+
+    def search(self, origin: str, destination: str, date: str) -> list[ProviderAlternative]:
+        payload = self._send(
+            "GET",
+            self.FLIGHT_OFFERS_PATH,
             params={
                 "originLocationCode": origin,
                 "destinationLocationCode": destination,
-                "departureDate": day.strftime("%Y-%m-%d"),
+                "departureDate": date,
                 "adults": 1,
-                "currencyCode": "INR",
-                "max": 15,
+                "currencyCode": self.CURRENCY,
             },
             headers={"Authorization": f"Bearer {self._access_token()}"},
         )
-        if resp.status_code == 429:
-            self._paused_until = time.monotonic() + RATE_LIMIT_COOLDOWN_SECONDS
-            raise RuntimeError("Amadeus rate limit reached")
-        resp.raise_for_status()
-        return self.parse_offers(resp.json(), origin, destination)
+        offers = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(offers, list):
+            raise self._fail("Amadeus flight-offers response had no data list")
 
-    @staticmethod
-    def parse_offers(payload: dict, origin: str, destination: str) -> list[ProviderAlternative]:
-        carriers = (payload.get("dictionaries") or {}).get("carriers") or {}
-        options: list[ProviderAlternative] = []
-        for offer in payload.get("data") or []:
+        # One odd offer shouldn't discard the rest; only an entirely
+        # unparseable response counts as a provider failure.
+        alternatives: list[ProviderAlternative] = []
+        for offer in offers:
             try:
-                segments = offer["itineraries"][0]["segments"]
-                first, last = segments[0], segments[-1]
-                code = f"{first['carrierCode']}-{first['number']}"
-                cabin = (
-                    offer.get("travelerPricings", [{}])[0].get("fareDetailsBySegment", [{}])[0].get("cabin", "ECONOMY")
-                )
-                options.append(
-                    ProviderAlternative(
-                        id=f"amadeus-{offer.get('id', code)}",
-                        provider=carriers.get(first["carrierCode"], first["carrierCode"]).title(),
-                        confirmation_hint=code,
-                        origin=origin,
-                        destination=destination,
-                        departure=datetime.fromisoformat(first["departure"]["at"]),
-                        arrival=datetime.fromisoformat(last["arrival"]["at"]),
-                        cost=float(offer["price"]["grandTotal"]),
-                        tier="premium" if cabin in PREMIUM_CABINS else "standard",
-                        # Self-service offers don't expose refund rules; assume the strict case.
-                        refundable=False,
-                        refund_percentage=0.0,
-                        cancellation_deadline_hours=24,
-                        source="live",
-                    )
-                )
+                alternatives.append(self._parse_offer(offer))
             except (KeyError, IndexError, TypeError, ValueError):
-                continue  # skip malformed offers, keep the rest
-        return options
-
-    # ---- FlightProvider ----------------------------------------------------------------
-
-    def _live_or_none(self, origin: str, destination: str, after: datetime) -> list[ProviderAlternative] | None:
-        if not self.configured or not origin or not destination:
-            return None
-        if time.monotonic() < self._paused_until:
-            logger.info("Amadeus paused after rate limit; using simulated flights")
-            return None
-        try:
-            found = self._search_live(origin, destination, after)
-            if len([o for o in found if o.departure >= after]) < 2:
-                found += self._search_live(origin, destination, after + timedelta(days=1))
-            return found
-        except Exception as exc:
-            logger.warning("Amadeus flight search failed (%s); falling back to simulated flights", exc)
-            return None
-
-    def search(self, origin: str, destination: str, date: str) -> list[ProviderAlternative]:
-        live = self._live_or_none(origin, destination, datetime.fromisoformat(date))
-        return live if live else self.fallback.search(origin, destination, date)
+                continue
+        if offers and not alternatives:
+            raise self._fail("Amadeus flight offers could not be parsed")
+        return alternatives
 
     def get_alternatives(
         self, origin: str, destination: str, after: datetime, exclude_confirmation: str | None = None
     ) -> list[ProviderAlternative]:
-        live = self._live_or_none(origin, destination, after)
-        if live:
-            options = sorted(
-                (o for o in live if o.departure >= after and o.confirmation_hint != exclude_confirmation),
-                key=lambda o: o.departure,
-            )
-            if options:
-                return options[:6]
-        return self.fallback.get_alternatives(origin, destination, after, exclude_confirmation)
+        # Nothing departs "after" an unbounded time (RecoveryEngine can pass
+        # datetime.max), and Amadeus can't search without both airports.
+        if not origin or not destination or after.date() >= datetime.max.date():
+            return []
+        # Search the day of `after` and the next day, so a late-evening
+        # disruption can still recover onto a next-morning flight.
+        options: dict[str, ProviderAlternative] = {}
+        for day in (after.date(), after.date() + timedelta(days=1)):
+            for option in self.search(origin, destination, day.isoformat()):
+                options.setdefault(option.id, option)
+        return sorted(
+            (o for o in options.values() if o.departure >= after and o.confirmation_hint != exclude_confirmation),
+            key=lambda o: o.departure,
+        )
 
     def get_booking(self, confirmation: str) -> ProviderAlternative | None:
-        # Order retrieval needs the Amadeus booking APIs, which self-service keys don't include.
-        return self.fallback.get_booking(confirmation)
+        # Amadeus Self-Service can only retrieve orders created through its own
+        # booking API, by Amadeus order id - it cannot look up an arbitrary
+        # airline booking by confirmation code. "Not found" is the honest answer.
+        return None
 
     def get_cancellation_policy(self, confirmation: str) -> CancellationPolicy:
-        return self.fallback.get_cancellation_policy(confirmation)
+        # No booking lookup (see get_booking), so fall back to the same
+        # conservative terms search() assigns to every offer.
+        return CancellationPolicy(
+            _DEFAULT_REFUNDABLE,
+            _DEFAULT_REFUND_PERCENTAGE,
+            _DEFAULT_CANCELLATION_DEADLINE_HOURS,
+            "Cancellation terms unavailable from Amadeus; assuming non-refundable.",
+        )

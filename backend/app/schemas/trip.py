@@ -53,6 +53,10 @@ class EdgeOut(CamelModel):
     label: str | None = None
     type: str | None = None
     animated: bool = False
+    # "hard" (the next booking cannot happen without this one) or "soft", and
+    # the minimum buffer the connection needs - the data propagation runs on.
+    dependency_type: str | None = None
+    min_buffer_minutes: int | None = None
 
 
 class TripDayOut(CamelModel):
@@ -78,6 +82,9 @@ class TripOut(CamelModel):
     health_score: int
     status: str
     days: list[TripDayOut]
+    # Whether POST /reset can restore this trip. Only seeded demo trips have a
+    # known original state; user-created trips cannot be reset.
+    resettable: bool = False
 
 
 class TripSummaryOut(CamelModel):

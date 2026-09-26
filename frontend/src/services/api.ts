@@ -398,7 +398,8 @@ export interface DisruptionExtraction {
   confidence: number;
   matchedSignals: string[];
   summary: string;
-  source: 'heuristic' | 'llm';
+  /** 'fallback' = rule-based parser ('heuristic' from older servers). */
+  source: 'fallback' | 'heuristic' | 'llm';
 }
 
 export async function getRecoveryNarrative(tripId: string): Promise<RecoveryNarrative> {
