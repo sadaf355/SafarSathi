@@ -8,7 +8,8 @@ from app.schemas.common import TravelerPreferences
 from app.schemas.notification import NotificationOut
 from app.schemas.risk import RiskAnalysisOut
 from app.schemas.trip import BookingOut, NodeCreateRequest, TripCreateRequest, TripExportOut, TripOut, TripSummaryOut
-from app.services import risk_service, trip_service
+from app.services.converters import format_time
+from app.services import risk_prediction_service, risk_service, trip_service
 
 router = APIRouter(prefix="/api/trips", tags=["trips"])
 
@@ -97,6 +98,31 @@ def get_trip_risks(trip_id: str, db: Session = Depends(get_db), traveler_id: str
     try:
         trip_service.get_trip(db, trip_id, traveler_id)
         return risk_service.get_risk_analysis(db, trip_id)
+    except trip_service.TripNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Trip '{trip_id}' not found")
+
+
+@router.post("/{trip_id}/risk/poll-once", response_model=list[NotificationOut])
+def poll_risk_once(
+    trip_id: str,
+    db: Session = Depends(get_db),
+    traveler_id: str = Depends(get_current_traveler_id),
+):
+    try:
+        trip_service.get_trip(db, trip_id, traveler_id)
+        notifications = risk_prediction_service.run_risk_prediction_cycle(db, trip_id=trip_id)
+        return [
+            NotificationOut(
+                id=n.id,
+                severity=n.severity.value,
+                category=n.category.value,
+                title=n.title,
+                message=n.message,
+                timestamp=format_time(n.timestamp),
+                read=n.read,
+            )
+            for n in notifications
+        ]
     except trip_service.TripNotFoundError:
         raise HTTPException(status_code=404, detail=f"Trip '{trip_id}' not found")
 
