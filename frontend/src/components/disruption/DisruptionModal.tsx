@@ -95,48 +95,17 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   }, [open, tripId, selected, delayMinutes]);
 
 
-  const analyzeSmartReport = async () => {
-    if (!smartText.trim()) return;
-    setAnalyzing(true);
-    try {
-      const result = await api.extractDisruptionReport(
-        tripId,
-        smartText,
-        trip.nodes.map((n) => ({ id: n.id, title: n.title, label: n.label, provider: n.provider, category: n.category }))
-      );
-      const type = result.type;
-      const minutes = result.delayMinutes ?? 180;
-      const node = result.nodeId ? trip.nodes.find((n) => n.id === result.nodeId) : undefined;
-      setSelected(type as DisruptionType['id']);
-      if (DELAY_BASED_TYPES.has(type)) setDelayHours(Math.max(1, Math.min(6, Math.round(minutes / 60))));
-      setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${Math.round(minutes/60)}h` : 'Disruption detected'}` : `${type.replaceAll('-', ' ')} · ${Math.round(minutes/60)}h`, nodeId: node?.id });
-    } catch {
-      addToast('error', 'Could not analyze report', 'Please try again or use the manual options below.');
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
-  const toggleListening = () => {
-    if (!SpeechRecognitionCtor) return;
-    if (listening) {
-      recognitionRef.current?.stop();
-      return;
-    }
-    const recognition = new SpeechRecognitionCtor();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-IN';
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript as string;
-      setSmartText((prev) => (prev.trim() ? `${prev} ${transcript}` : transcript));
-      setUnderstood(null);
-    };
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
-    recognitionRef.current = recognition;
-    recognition.start();
-    setListening(true);
+  const analyzeSmartReport = () => {
+    const text = smartText.toLowerCase();
+    const hoursMatch = text.match(/(\d+(?:\.5)?)\s*(?:hour|hours|hr|hrs|h)/);
+    const minutesMatch = text.match(/(\d+)\s*(?:minute|minutes|min|mins|m)/);
+    const minutes = hoursMatch ? Math.round(Number(hoursMatch[1]) * 60) : minutesMatch ? Number(minutesMatch[1]) : 180;
+    const node = trip.nodes.find((n) => text.includes(n.title.toLowerCase()) || text.includes(n.label.toLowerCase()) || text.includes(n.provider.toLowerCase()));
+    const isWeather = /storm|snow|fog|flood|cyclone|weather|monsoon|blizzard/.test(text);
+    const type = isWeather ? 'weather-disruption' : text.includes('cancel') ? 'flight-cancellation' : text.includes('miss') && text.includes('connection') ? 'missed-connection' : text.includes('hotel') ? 'hotel-conflict' : 'flight-delay';
+    setSelected(type as DisruptionType['id']);
+    if (DELAY_BASED_TYPES.has(type)) setDelayHours(Math.max(1, Math.min(6, Math.round(minutes / 60))));
+    setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${Math.round(minutes/60)}h` : 'Disruption detected'}` : `${type.split('-').join(' ')} · ${Math.round(minutes/60)}h`, nodeId: node?.id });
   };
 
   const handleTrigger = async () => {

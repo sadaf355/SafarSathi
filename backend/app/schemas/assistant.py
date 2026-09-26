@@ -26,32 +26,5 @@ class AssistantResponse(CamelModel):
     content: str
     references: list[AssistantReference] = []
     source: str  # "llm" | "deterministic"
-
-
-class DisruptionExtractNode(CamelModel):
-    id: str
-    title: str
-    label: str
-    provider: str
-    category: str
-
-
-class DisruptionExtractRequest(CamelModel):
-    trip_id: str = Field(..., min_length=1, max_length=100, description="Target trip ID")
-    message: str = Field(..., min_length=1, max_length=2000, description="Question or prompt from traveler")
-    nodes: list[DisruptionExtractNode] = Field(..., min_length=1)
-
-    @field_validator("message", "trip_id")
-    @classmethod
-    def strip_and_validate_non_empty(cls, v: str) -> str:
-        cleaned = v.strip()
-        if not cleaned:
-            raise ValueError("Field cannot be empty or only whitespace")
-        return cleaned
-
-
-class DisruptionExtractResponse(CamelModel):
-    type: str
-    delay_minutes: int | None = None
-    node_id: str | None = None
-    source: str  # "llm" | "fallback"
+    # Set only when the assistant wants to propose applying a specific recovery plan; the backend must never apply it automatically — the frontend shows a confirmation modal and only calls the existing /recovery/apply endpoint after explicit user confirmation.
+    proposed_recovery_id: str | None = None

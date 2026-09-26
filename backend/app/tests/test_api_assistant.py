@@ -99,7 +99,22 @@ def test_assistant_rejects_excessively_long_message(client):
     assert resp.status_code == 422
 
 
-def test_assistant_unknown_trip_returns_404(client):
+
+
+def test_assistant_response_has_no_proposed_recovery_without_llm(client):
+    """proposedRecoveryId must default to None when no ANTHROPIC_API_KEY is
+    set, since the deterministic fallback path never proposes a recovery."""
+    _trigger_hero_disruption(client)
+    client.post("/api/trips/trip-ladakh-2025/recovery-options/generate")
+    resp = client.post(
+        "/api/assistant",
+        json={"tripId": "trip-ladakh-2025", "message": "What should I do?"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source"] == "deterministic"
+    assert body.get("proposedRecoveryId") is None
+
     resp = client.post(
         "/api/assistant",
         json={"tripId": "trip-non-existent-9999", "message": "What is the status?"},
