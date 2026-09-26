@@ -111,7 +111,16 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
       if (DELAY_BASED_TYPES.has(type)) setDelayHours(Math.max(1, Math.min(6, Math.round(minutes / 60))));
       setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${Math.round(minutes/60)}h` : 'Disruption detected'}` : `${type.replaceAll('-', ' ')} · ${Math.round(minutes/60)}h`, nodeId: node?.id });
     } catch {
-      addToast('error', 'Could not analyze report', 'Please try again or use the manual options below.');
+      const text = smartText.toLowerCase();
+      const hoursMatch = text.match(/(\d+(?:\.5)?)\s*(?:hour|hours|hr|hrs|h)/);
+      const minutesMatch = text.match(/(\d+)\s*(?:minute|minutes|min|mins|m)/);
+      const minutes = hoursMatch ? Math.round(Number(hoursMatch[1]) * 60) : minutesMatch ? Number(minutesMatch[1]) : 180;
+      const node = trip.nodes.find((n) => text.includes(n.title.toLowerCase()) || text.includes(n.label.toLowerCase()) || text.includes(n.provider.toLowerCase()));
+      const isWeather = /storm|snow|fog|flood|cyclone|weather|monsoon|blizzard/.test(text);
+      const type = isWeather ? 'weather-disruption' : text.includes('cancel') ? 'flight-cancellation' : text.includes('miss') && text.includes('connection') ? 'missed-connection' : text.includes('hotel') ? 'hotel-conflict' : 'flight-delay';
+      setSelected(type as DisruptionType['id']);
+      if (DELAY_BASED_TYPES.has(type)) setDelayHours(Math.max(1, Math.min(6, Math.round(minutes / 60))));
+      setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${Math.round(minutes/60)}h` : 'Disruption detected'}` : `${type.split('-').join(' ')} · ${Math.round(minutes/60)}h`, nodeId: node?.id });
     } finally {
       setAnalyzing(false);
     }
@@ -127,7 +136,7 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = 'en-IN';
-    recognition.onresult = (event) => {
+    recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript as string;
       setSmartText((prev) => (prev.trim() ? `${prev} ${transcript}` : transcript));
       setUnderstood(null);

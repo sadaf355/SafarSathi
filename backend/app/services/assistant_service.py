@@ -20,12 +20,8 @@ from app.config import get_settings
 from app.models.enums import DisruptionType
 from app.repositories.disruption_repository import DisruptionRepository
 from app.repositories.recovery_repository import RecoveryRepository
-from app.schemas.assistant import (
-    AssistantReference,
-    AssistantResponse,
-    DisruptionExtractNode,
-    DisruptionExtractResponse,
-)
+from app.schemas.assistant import AssistantReference, AssistantResponse
+from app.services import recovery_service
 from app.services.risk_service import get_risk_analysis
 from app.services.trip_service import get_trip_out
 
@@ -57,6 +53,54 @@ def _gather_context(db: Session, trip_id: str, traveler_id: str | None = None) -
         "applied_plan": applied_plan,
         "risk": risk,
     }
+
+
+def _tool_get_impact(db: Session, trip_id: str, traveler_id: str | None) -> dict:
+    context = _gather_context(db, trip_id, traveler_id)
+    trip = context["trip"]
+    disruption = context["disruption"]
+    return {
+        "trip_name": trip.name,
+        "health_score": trip.health_score,
+        "nodes": [
+            {"title": n.title, "status": n.status, "reason": n.reason} for n in trip.nodes
+        ],
+        "active_disruption": (
+            {
+                "label": disruption.label,
+                "financial_exposure": disruption.financial_exposure,
+                "refund_exposure": disruption.refund_exposure,
+            }
+            if disruption
+            else None
+        ),
+    }
+
+
+def _tool_list_recovery_options(db: Session, trip_id: str, traveler_id: str | None) -> list[dict]:
+    options = recovery_service.generate_recovery_options(db, trip_id, traveler_id)
+    return [
+        {
+            "id": o.id,
+            "name": o.name,
+            "cost_delta": o.cost_delta,
+            "time_impact_minutes": o.time_impact_minutes,
+            "score": o.score,
+            "bookings_preserved": o.bookings_preserved,
+            "total_bookings": o.total_bookings,
+        }
+        for o in options
+    ]
+
+
+# SAFETY: this function must never call recovery_service.apply_recovery().
+# Applying a recovery is only ever triggered by an explicit user click in
+# the frontend confirm modal, which calls the existing /recovery/apply
+# endpoint directly. This tool exists only so the LLM can express intent;
+# the AssistantResponse.proposed_recovery_id field carries that intent
+# back to the frontend, and nothing here writes to the database.
+def _tool_propose_apply_recovery(recovery_id: str) -> dict:
+    return {"recovery_id": recovery_id, "status": "awaiting_user_confirmation"}
 
 
 def _breakdown_component(breakdown: dict, key: str) -> str:
@@ -189,12 +233,13 @@ def _deterministic_answer(context: dict, message: str) -> tuple[str, list[Assist
     )
 
 
-def _llm_answer(context: dict, message: str) -> str | None:
+def _llm_answer(context: dict, message: str, db: Session, trip_id: str, traveler_id: str | None) -> tuple[str | None, str | None]:
     settings = get_settings()
     if not settings.anthropic_api_key:
-        return None
+        return None, None
     try:
         import anthropic
+        import json
 
         trip = context["trip"]
         disruption = context["disruption"]
@@ -228,30 +273,110 @@ def _llm_answer(context: dict, message: str) -> str | None:
             ],
         }
 
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        response = client.messages.create(
-            model=settings.anthropic_model,
-            max_tokens=400,
-            system=(
-                "You are the TripRescue assistant. Answer ONLY using the JSON trip data provided. "
-                "Never invent bookings, prices, or times that are not in the data. Be concise and specific, "
-                "citing actual numbers from the data."
-            ),
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Trip data:\n{grounded}\n\nTraveler question: {message}",
-                }
-            ],
+        tool_schemas = [
+            {
+                "name": "get_impact",
+                "description": "Get the current trip's disruption status and per-node health",
+                "input_schema": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "list_recovery_options",
+                "description": "Get ranked recovery plan candidates for the active disruption",
+                "input_schema": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "propose_apply_recovery",
+                "description": (
+                    "Propose applying a specific recovery plan by id. This does NOT apply it "
+                    "— it only surfaces the proposal to the traveler for their explicit confirmation."
+                ),
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"recovery_id": {"type": "string"}},
+                    "required": ["recovery_id"],
+                },
+            },
+        ]
+
+        system_prompt = (
+            "You are the TripRescue assistant. Answer ONLY using the JSON trip data provided. "
+            "Never invent bookings, prices, or times that are not in the data. Be concise and specific, "
+            "citing actual numbers from the data. "
+            "You may call get_impact or list_recovery_options to fetch live data if the trip data "
+            "already provided is insufficient. If you determine the traveler wants to apply a specific "
+            "recovery plan, call propose_apply_recovery with its id — you are never able to apply it "
+            "yourself, only propose it."
         )
-        return response.content[0].text if response.content else None
+
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        messages = [
+            {
+                "role": "user",
+                "content": f"Trip data:\n{grounded}\n\nTraveler question: {message}",
+            }
+        ]
+
+        proposed_recovery_id: str | None = None
+        max_iterations = 4
+
+        for _ in range(max_iterations):
+            response = client.messages.create(
+                model=settings.anthropic_model,
+                max_tokens=400,
+                system=system_prompt,
+                tools=tool_schemas,
+                messages=messages,
+            )
+
+            if response.stop_reason != "tool_use":
+                # Normal text turn — extract the final answer.
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        return block.text, proposed_recovery_id
+                return None, None
+
+            # Process tool_use blocks and build tool_result responses.
+            tool_results = []
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
+                try:
+                    if block.name == "get_impact":
+                        result = _tool_get_impact(db, trip_id, traveler_id)
+                    elif block.name == "list_recovery_options":
+                        result = _tool_list_recovery_options(db, trip_id, traveler_id)
+                    elif block.name == "propose_apply_recovery":
+                        rid = block.input.get("recovery_id", "")
+                        result = _tool_propose_apply_recovery(rid)
+                        proposed_recovery_id = rid
+                    else:
+                        result = {"error": f"Unknown tool: {block.name}"}
+                except Exception:
+                    logger.warning("Tool dispatch %s failed; returning error to model.", block.name, exc_info=True)
+                    result = {"error": f"Tool {block.name} failed"}
+
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": json.dumps(result),
+                    }
+                )
+
+            # Append the assistant's response (contains tool_use blocks) and
+            # a user message with the corresponding tool_result blocks.
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": tool_results})
+
+        # Exhausted iterations without a final text response.
+        return None, None
     except Exception:
         # LLM outage/misconfiguration must never break the assistant - the
         # deterministic responder below is the fallback - but a silent
         # failure here means an operator has no way to notice a broken key
         # or a persistent outage, so log it (no secrets, just the failure).
         logger.warning("LLM call failed; falling back to the deterministic assistant.", exc_info=True)
-        return None
+        return None, None
 
 
 def generate_recovery_narrative(db: Session, trip_id: str) -> dict[str, str]:
@@ -482,9 +607,9 @@ def extract_disruption_report(message: str, nodes: list[DisruptionExtractNode]) 
 def answer_question(db: Session, trip_id: str, message: str, traveler_id: str | None = None) -> AssistantResponse:
     context = _gather_context(db, trip_id, traveler_id)
 
-    llm_text = _llm_answer(context, message)
+    llm_text, proposed_recovery_id = _llm_answer(context, message, db, trip_id, traveler_id)
     if llm_text:
-        return AssistantResponse(content=llm_text, references=[], source="llm")
+        return AssistantResponse(content=llm_text, references=[], source="llm", proposed_recovery_id=proposed_recovery_id)
 
     text, refs = _deterministic_answer(context, message)
     return AssistantResponse(content=text, references=refs, source="deterministic")

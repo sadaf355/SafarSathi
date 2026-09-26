@@ -165,6 +165,7 @@ export interface AssistantAnswer {
   content: string;
   references: AssistantReferenceOut[];
   source: 'llm' | 'deterministic';
+  proposedRecoveryId?: string | null;
 }
 
 export interface DisruptionExtractNodeInput {
