@@ -18,13 +18,33 @@ class Settings(BaseSettings):
     auth_token_ttl_days: int = 30
     login_rate_limit: str = "10/minute"
     register_rate_limit: str = "5/minute"
+    disruption_rate_limit: str = "20/minute"
+    assistant_rate_limit: str = "15/minute"
+    # When True, anonymous requests are rejected instead of silently mapped to the seeded demo traveler. Must be True in any real production deployment; defaults to False so local dev and the existing test suite keep working unchanged.
+    require_authentication: bool = False
     db_pool_size: int = 5
     db_max_overflow: int = 10
     db_pool_recycle_seconds: int = 300
     weather_request_timeout_seconds: float = 3.0
     weather_total_timeout_seconds: float = 4.0
+<<<<<<< HEAD
     risk_prediction_enabled: bool = True
     risk_prediction_interval_minutes: int = 15
+=======
+    geocoding_request_timeout_seconds: float = 3.0
+    # Real contact (email or URL) sent to Nominatim in the User-Agent, per its usage policy. Optional; never a placeholder.
+    geocoding_contact: str | None = None
+    provider_mode: str = "mock"  # "mock" | "live"
+    amadeus_client_id: str | None = None
+    amadeus_client_secret: str | None = None
+    amadeus_base_url: str = "https://test.api.amadeus.com"  # sandbox by default, never point at production by default
+    resend_api_key: str | None = None
+    email_notifications_enabled: bool = False
+    notification_from_address: str = "alerts@safarsathi.example"  # placeholder - team must set a real verified sender domain
+    sentry_dsn: str | None = None
+    # When True, the three demo trips (Ladakh/Goa/Rajasthan) and the demo traveler are created on startup if they don't already exist. Must be False in any real deployment with real users - a real production database should start empty and grow only from real user signups and trip creation.
+    seed_demo_data: bool = False
+>>>>>>> origin/shreya
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_traveler_id
+from app.config import get_settings
+from app.core.rate_limiting import limiter
 from app.database.session import get_db
 from app.repositories.disruption_repository import DisruptionRepository
 from app.repositories.node_repository import NodeRepository
@@ -19,14 +21,16 @@ _itinerary_engine = ItineraryEngine()
 
 
 @router.post("/disruptions", response_model=PropagationResultOut)
+@limiter.limit(lambda: get_settings().disruption_rate_limit)
 def trigger_disruption(
     trip_id: str,
-    request: DisruptionRequest,
+    payload: DisruptionRequest,
+    request: Request,
     db: Session = Depends(get_db),
     traveler_id: str = Depends(get_current_traveler_id),
 ):
     try:
-        result = disruption_service.trigger_disruption(db, trip_id, request, traveler_id)
+        result = disruption_service.trigger_disruption(db, trip_id, payload, traveler_id)
     except trip_service.TripNotFoundError:
         raise HTTPException(status_code=404, detail=f"Trip '{trip_id}' not found")
     except disruption_service.InvalidDisruptionError as exc:
@@ -99,9 +103,11 @@ def repropagate(trip_id: str, db: Session = Depends(get_db), traveler_id: str = 
 
 
 @router.post("/simulate", response_model=PropagationResultOut)
+@limiter.limit(lambda: get_settings().disruption_rate_limit)
 def simulate_disruption(
     trip_id: str,
-    request: DisruptionRequest,
+    payload: DisruptionRequest,
+    request: Request,
     db: Session = Depends(get_db),
     traveler_id: str = Depends(get_current_traveler_id),
 ):
@@ -122,9 +128,9 @@ def simulate_disruption(
         from app.services.disruption_service import _label_for, _resolve_primary_node
         from app.models.enums import DisruptionType
 
-        if request.type not in DisruptionType._value2member_map_:
-            raise disruption_service.InvalidDisruptionError(f"Unknown disruption type: {request.type}")
-        primary_node = _resolve_primary_node(nodes, request.type, request.primary_node_id)
+        if payload.type not in DisruptionType._value2member_map_:
+            raise disruption_service.InvalidDisruptionError(f"Unknown disruption type: {payload.type}")
+        primary_node = _resolve_primary_node(nodes, payload.type, payload.primary_node_id)
     except disruption_service.InvalidDisruptionError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -135,21 +141,21 @@ def simulate_disruption(
         nodes=engine_nodes,
         edges=engine_edges,
         disrupted_node_id=primary_node.id,
-        disruption_type=request.type,
-        delay_minutes=request.delay_minutes,
+        disruption_type=payload.type,
+        delay_minutes=payload.delay_minutes,
         detected_at=detected_at,
     )
     non_healthy = [n for n in nodes if result.impacts[n.id].status != "healthy" and n.id != primary_node.id]
-    financial = _financial_engine.summarize(engine_nodes, result.impacts)
+    financial = _financial_engine.summarize(engine_nodes, result.impacts, detected_at)
     preview_health_score = _itinerary_engine.compute_health_score(engine_nodes, engine_edges, result.impacts)
     from app.schemas.disruption import DisruptionOut
 
     disruption_out = DisruptionOut(
         id="preview",
-        type=request.type,
-        label=_label_for(request.type, primary_node, request.delay_minutes),
+        type=payload.type,
+        label=_label_for(payload.type, primary_node, payload.delay_minutes),
         primary_node_id=primary_node.id,
-        delay_minutes=request.delay_minutes,
+        delay_minutes=payload.delay_minutes,
         impact_level="high" if non_healthy else "low",
         direct_impact=1,
         downstream_impact=len(non_healthy),

@@ -1,8 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_traveler_id
+from app.config import get_settings
+from app.core.rate_limiting import limiter
 from app.database.session import get_db
+from app.providers.geocoding_provider import NominatimGeocodingProvider
+from app.schemas.base import CamelModel
 from app.schemas.activity import ActivityEventOut
 from app.schemas.common import TravelerPreferences
 from app.schemas.notification import NotificationOut
@@ -12,6 +17,30 @@ from app.services.converters import format_time
 from app.services import risk_prediction_service, risk_service, trip_service
 
 router = APIRouter(prefix="/api/trips", tags=["trips"])
+# Geocoding isn't trip-scoped, so it lives on its own router to get the
+# /api/geocode path rather than /api/trips/geocode.
+geocode_router = APIRouter(prefix="/api", tags=["geocoding"])
+_geocoding_provider = NominatimGeocodingProvider(
+    timeout_seconds=get_settings().geocoding_request_timeout_seconds, contact=get_settings().geocoding_contact
+)
+
+
+class GeocodeRequest(CamelModel):
+    query: str = Field(min_length=1, max_length=300)
+
+
+class GeocodeResponse(CamelModel):
+    lat: float
+    lng: float
+
+
+@geocode_router.post("/geocode", response_model=GeocodeResponse)
+@limiter.limit(lambda: get_settings().disruption_rate_limit)
+def geocode(payload: GeocodeRequest, request: Request, traveler_id: str = Depends(get_current_traveler_id)):
+    coords = _geocoding_provider.geocode(payload.query)
+    if coords is None:
+        raise HTTPException(status_code=404, detail="Location not found")
+    return GeocodeResponse(lat=coords[0], lng=coords[1])
 
 
 @router.get("", response_model=list[TripSummaryOut])

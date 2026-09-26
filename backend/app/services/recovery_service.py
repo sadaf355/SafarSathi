@@ -11,13 +11,14 @@ from app.engines.recovery_engine import RecoveryEngine, RecoveryPlanResult
 from app.models.activity import ActivityEvent
 from app.models.booking import Booking
 from app.models.dependency_edge import DependencyEdge
-from app.models.enums import ActivityType, ChangeType, EdgeStatus, NodeStatus, NotificationCategory, NotificationSeverity, RiskLevel, TripStatus
+from app.models.enums import ActivityType, ChangeType, EdgeStatus, NodeCategory, NodeStatus, NotificationCategory, NotificationSeverity, RiskLevel, TripStatus
 from app.models.notification import Notification
 from app.models.recovery import RecoveryAction, RecoveryPlan
 from app.providers.mock_activity_provider import MockActivityProvider
 from app.providers.mock_flight_provider import MockFlightProvider
 from app.providers.mock_hotel_provider import MockHotelProvider
 from app.providers.mock_transfer_provider import MockTransferProvider
+from app.providers.provider_factory import get_flight_provider
 from app.repositories.activity_repository import ActivityRepository, NotificationRepository
 from app.repositories.disruption_repository import DisruptionRepository
 from app.repositories.node_repository import NodeRepository
@@ -30,7 +31,7 @@ from app.services.trip_service import get_trip, get_trip_out
 _propagation_engine = PropagationEngine()
 _itinerary_engine = ItineraryEngine()
 _recovery_engine = RecoveryEngine(
-    flight_provider=MockFlightProvider(),
+    flight_provider=get_flight_provider(),
     hotel_provider=MockHotelProvider(),
     activity_provider=MockActivityProvider(),
     transfer_provider=MockTransferProvider(),
@@ -111,6 +112,29 @@ def _persist_plan(db: Session, trip_id: str, disruption_id: str, plan: RecoveryP
     return db_plan
 
 
+_FLIGHT_CATEGORIES = {NodeCategory.FLIGHT, NodeCategory.RETURN}
+
+
+def _data_source(plan: RecoveryPlan) -> str:
+    """"live" only when provably so, otherwise "simulated".
+
+    Checks the flight provider instance actually in use rather than
+    PROVIDER_MODE, since the factory falls back to the mock when live
+    credentials are missing. Hotel/activity/transfer providers are always mock
+    today, so any rebooking outside flights - or an activity moved into a
+    provider-supplied slot - makes the option simulated. A plan with no
+    rebooking at all (e.g. "no options available") can't be shown to be live.
+    """
+    if isinstance(_recovery_engine.flight_provider, MockFlightProvider):
+        return "simulated"
+    rebooked = [a for a in plan.actions if a.change_type == ChangeType.REBOOKED]
+    if not rebooked or any(a.node.category not in _FLIGHT_CATEGORIES for a in rebooked):
+        return "simulated"
+    if any(a.change_type == ChangeType.RESCHEDULED and a.node.category == NodeCategory.ACTIVITY for a in plan.actions):
+        return "simulated"
+    return "live"
+
+
 def _plan_to_out(plan: RecoveryPlan) -> RecoveryOptionOut:
     return RecoveryOptionOut(
         id=plan.id,
@@ -143,6 +167,7 @@ def _plan_to_out(plan: RecoveryPlan) -> RecoveryOptionOut:
         ),
         feasible=plan.feasible,
         provider_reason=plan.provider_reason or (plan.explanation if not plan.feasible else None),
+        data_source=_data_source(plan),
     )
 
 

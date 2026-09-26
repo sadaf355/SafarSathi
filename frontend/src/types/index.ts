@@ -55,6 +55,8 @@ export interface DependencyEdgeData {
   label?: string;
   type?: 'dependency' | 'recovery';
   animated?: boolean;
+  dependencyType?: 'hard' | 'soft';
+  minBufferMinutes?: number;
 }
 
 export interface Trip {
@@ -72,6 +74,8 @@ export interface Trip {
   healthScore: number;
   status: 'operational' | 'disrupted' | 'recovering' | 'recovered';
   days: TripDay[];
+  /** Only seeded demo trips can be reset (and so run Demo Mode). */
+  resettable?: boolean;
 }
 
 export interface TripDay {
@@ -133,6 +137,9 @@ export interface RecoveryOption {
   feasible?: boolean;
   providerReason?: string | null;
   recoveryNarrative?: string | null;
+  /** Where the provider data behind this option came from. Anything other than
+   * 'live' (including absent) is treated as simulated - never assumed real. */
+  dataSource?: 'live' | 'simulated';
 }
 
 export interface RecoveryChange {

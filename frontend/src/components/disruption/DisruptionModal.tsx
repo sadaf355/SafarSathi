@@ -46,11 +46,17 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [smartText, setSmartText] = useState('');
   const [understood, setUnderstood] = useState<{ label: string; nodeId?: string } | null>(null);
+<<<<<<< HEAD
+=======
+  const [analyzing, setAnalyzing] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+>>>>>>> origin/shreya
 
   const delayMinutes = DELAY_BASED_TYPES.has(selected) ? delayMinutesInput : undefined;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !tripId) return;
     let cancelled = false;
     setPreviewLoading(true);
     api
@@ -70,6 +76,7 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   }, [open, tripId, selected, delayMinutes]);
 
 
+<<<<<<< HEAD
   const analyzeSmartReport = () => {
     const text = smartText.toLowerCase();
     const hoursMatch = text.match(/(\d+(?:\.5)?)\s*(?:hour|hours|hr|hrs|h)/);
@@ -81,6 +88,59 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
     setSelected(type as DisruptionType['id']);
     if (DELAY_BASED_TYPES.has(type)) setDelayMinutesInput(Math.max(15, Math.min(360, Math.round(minutes / 5) * 5)));
     setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${minutes} min` : 'Disruption detected'}` : `${type.replace(/-/g, ' ')} · ${minutes} min`, nodeId: node?.id });
+=======
+  const analyzeSmartReport = async () => {
+    if (!smartText.trim() || !tripId) return;
+    setAnalyzing(true);
+    try {
+      const result = await api.extractDisruptionReport(
+        tripId,
+        smartText,
+        trip.nodes.map((n) => ({ id: n.id, title: n.title, label: n.label, provider: n.provider, category: n.category }))
+      );
+      const type = result.type;
+      const minutes = result.delayMinutes ?? 180;
+      const node = result.nodeId ? trip.nodes.find((n) => n.id === result.nodeId) : undefined;
+      setSelected(type as DisruptionType['id']);
+      if (DELAY_BASED_TYPES.has(type)) setDelayHours(Math.max(1, Math.min(6, Math.round(minutes / 60))));
+      setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${Math.round(minutes/60)}h` : 'Disruption detected'}` : `${type.replaceAll('-', ' ')} · ${Math.round(minutes/60)}h`, nodeId: node?.id });
+    } catch {
+      const text = smartText.toLowerCase();
+      const hoursMatch = text.match(/(\d+(?:\.5)?)\s*(?:hour|hours|hr|hrs|h)/);
+      const minutesMatch = text.match(/(\d+)\s*(?:minute|minutes|min|mins|m)/);
+      const minutes = hoursMatch ? Math.round(Number(hoursMatch[1]) * 60) : minutesMatch ? Number(minutesMatch[1]) : 180;
+      const node = trip.nodes.find((n) => text.includes(n.title.toLowerCase()) || text.includes(n.label.toLowerCase()) || text.includes(n.provider.toLowerCase()));
+      const isWeather = /storm|snow|fog|flood|cyclone|weather|monsoon|blizzard/.test(text);
+      const type = isWeather ? 'weather-disruption' : text.includes('cancel') ? 'flight-cancellation' : text.includes('miss') && text.includes('connection') ? 'missed-connection' : text.includes('hotel') ? 'hotel-conflict' : 'flight-delay';
+      setSelected(type as DisruptionType['id']);
+      if (DELAY_BASED_TYPES.has(type)) setDelayHours(Math.max(1, Math.min(6, Math.round(minutes / 60))));
+      setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${Math.round(minutes/60)}h` : 'Disruption detected'}` : `${type.split('-').join(' ')} · ${Math.round(minutes/60)}h`, nodeId: node?.id });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const toggleListening = () => {
+    if (!SpeechRecognitionCtor) return;
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const recognition = new SpeechRecognitionCtor();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-IN';
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript as string;
+      setSmartText((prev) => (prev.trim() ? `${prev} ${transcript}` : transcript));
+      setUnderstood(null);
+    };
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => setListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+>>>>>>> origin/shreya
   };
 
   const handleTrigger = async () => {

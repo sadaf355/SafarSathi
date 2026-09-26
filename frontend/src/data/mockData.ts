@@ -1,11 +1,24 @@
 import type { DisruptionType, TravelerPreferences } from '@/types';
 
+<<<<<<< HEAD
 /** Static catalogues imported at runtime: `disruptionTypes` (the disruption
  * picker's catalogue), `defaultPreferences` (AppContext's pre-load fallback) and
  * `nodePositions` (the hand-tuned Ladakh graph layout; ItineraryGraph falls back
  * to `graphLayout.ts`'s auto-layout for any node set this doesn't cover). Trip,
  * booking and recovery data always come from the backend - or, in the offline
  * demo, from services/demoBackend.ts. */
+=======
+/** This file holds only what's actually imported at runtime:
+ * `defaultPreferences` (AppContext's pre-load fallback state),
+ * `suggestedPrompts` (Sathi AI's starter questions - not canned answers;
+ * asking one calls the real backend the same as typing it), `disruptionTypes`
+ * (the disruption picker's catalogue), and `nodePositions` (the hand-tuned
+ * Ladakh graph layout ItineraryGraph falls back to `graphLayout.ts`'s
+ * auto-layout for any node set this doesn't cover). Everything else that used
+ * to live here (a parallel set of hardcoded recovery options, risk cards,
+ * bookings, activity log, canned AI answers, a hardcoded demo trip, ...) was dead - the real backend
+ * is the source of truth for all of that once the app has loaded. */
+>>>>>>> origin/shreya
 
 export const disruptionTypes: DisruptionType[] = [
   { id: 'flight-delay', label: 'Flight Delay', description: 'Delay an existing flight by a specified duration', icon: 'clock' },

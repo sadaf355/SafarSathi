@@ -1,9 +1,16 @@
+<<<<<<< HEAD
 import { useState, type FormEvent } from 'react';
 import { ArrowLeft, Loader2, Sparkles, WifiOff } from 'lucide-react';
 import { useAuth } from '@/store/AuthContext';
 import { Logo, ScriptTagline } from '@/components/brand/Logo';
 import { ItineraryBoard } from '@/components/brand/ItineraryArt';
 import { cn } from '@/lib/utils';
+=======
+import { useEffect, useState, type FormEvent } from 'react';
+import { LifeBuoy, Loader2 } from 'lucide-react';
+import { useAuth } from '@/store/AuthContext';
+import * as api from '@/services/api';
+>>>>>>> origin/shreya
 
 type Mode = 'login' | 'register';
 
@@ -14,6 +21,25 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Name of the backend's demo traveler, or null when this server has none
+  // (e.g. SEED_DEMO_DATA is off) - decided by asking the backend, never
+  // assumed. The probe's token is discarded; signing in happens only on click.
+  const [demoName, setDemoName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getDemoAccount()
+      .then((demo) => {
+        if (!cancelled) setDemoName(demo.name);
+      })
+      .catch(() => {
+        if (!cancelled) setDemoName(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -80,6 +106,7 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
             </button>
           </form>
 
+<<<<<<< HEAD
           <div className="my-5 flex items-center gap-3 text-xs text-ink-faint"><div className="h-px flex-1 bg-line" />OR<div className="h-px flex-1 bg-line" /></div>
 
           <div className="space-y-2">
@@ -91,6 +118,26 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
             </button>
             <p className="pt-1 text-center text-[11px] leading-relaxed text-ink-muted">The offline demo runs entirely in your browser with sample trips — no account or backend needed.</p>
           </div>
+=======
+          {demoName && (
+          <>
+          <div className="my-4 flex items-center gap-2">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-[10px] text-slate-500">OR</span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => continueAsDemo().catch(() => {})}
+            className="w-full rounded-lg border border-slate-300 py-2 text-xs font-medium text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
+          >
+            Continue as Demo Traveler ({demoName})
+          </button>
+          </>
+          )}
+>>>>>>> origin/shreya
         </div>
       </div>
     </div>

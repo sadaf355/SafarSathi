@@ -90,7 +90,11 @@ beforeEach(() => {
     disruptionVsComfort: 50,
     recoveryPriorities: { minimizeCost: false, minimizeTime: false, minimizeDisruption: true, maximizeComfort: false },
   });
-  vi.mocked(api.listTrips).mockResolvedValue([]);
+  // The traveler owns exactly one trip; AppContext selects it from this list
+  // (there is no hardcoded default trip any more).
+  vi.mocked(api.listTrips).mockResolvedValue([
+    { id: 'trip-ladakh-2025', name: 'Test Trip', route: 'A → B', startDate: '2026-01-01', endDate: '2026-01-03', tripValue: 0, healthScore: 100, status: 'operational', nodeCount: 0, edgeCount: 0 },
+  ]);
 });
 
 describe('AppContext', () => {
@@ -140,8 +144,8 @@ describe('AppContext', () => {
     expect(result.current.error).toBe('Backend unreachable');
   });
 
-  it('does not display the seeded demo trip for a new user who owns no trip (404)', async () => {
-    vi.mocked(api.getItinerary).mockRejectedValue(new api.ApiError('Trip not found', 404));
+  it('shows the no-trips state for a new user who owns no trips, without requesting any trip', async () => {
+    vi.mocked(api.listTrips).mockResolvedValue([]);
 
     const { result } = renderHook(() => useApp(), { wrapper });
 
@@ -154,6 +158,9 @@ describe('AppContext', () => {
     expect(result.current.trip.nodes).toEqual([]);
     expect(result.current.trip.tripValue).toBe(0);
     expect(result.current.trip.healthScore).toBe(0);
+    expect(result.current.tripId).toBeNull();
+    // No default/demo trip is ever requested on the traveler's behalf.
+    expect(api.getItinerary).not.toHaveBeenCalled();
   });
 
   it('clears stale trip state when a subsequent load 404s (switching into an unowned trip)', async () => {
@@ -197,7 +204,7 @@ describe('AppContext', () => {
     // Gate()) - logging out unmounts it entirely, so a fresh login always
     // gets a brand-new provider instance starting from a clean initial
     // state, never whatever the previous session last held.
-    vi.mocked(api.getItinerary).mockRejectedValueOnce(new api.ApiError('Trip not found', 404));
+    vi.mocked(api.listTrips).mockResolvedValueOnce([]);
     const second = renderHook(() => useApp(), { wrapper });
     await waitFor(() => expect(second.result.current.loading).toBe(false));
 
@@ -207,13 +214,11 @@ describe('AppContext', () => {
     expect(first.result.current.trip.name).toBe('First User Trip');
   });
 
-  it('falls back to the traveler\'s own trip (surviving a refresh) when the default trip 404s but they own a real trip', async () => {
-    // Simulates a browser refresh after creating a trip: tripId always
-    // starts from the hardcoded default on a fresh load (nothing is
-    // persisted client-side), which a real user doesn't own, but they do
-    // own a genuine trip the backend can list.
+  it('falls back to another owned trip when the first listed trip 404s', async () => {
+    // e.g. the first trip was deleted between listing and loading.
     vi.mocked(api.getItinerary).mockRejectedValueOnce(new api.ApiError('Trip not found', 404));
     vi.mocked(api.listTrips).mockResolvedValue([
+      { id: 'trip-gone', name: 'Deleted Trip', route: 'X to Y', startDate: '2026-01-01', endDate: '2026-01-03', tripValue: 0, healthScore: 100, status: 'operational', nodeCount: 0, edgeCount: 0 },
       { id: 'trip-mine', name: 'My Real Trip', route: 'A to B', startDate: '2026-01-01', endDate: '2026-01-03', tripValue: 0, healthScore: 100, status: 'operational', nodeCount: 0, edgeCount: 0 },
     ]);
     vi.mocked(api.getItinerary).mockResolvedValueOnce(baseTrip({ id: 'trip-mine', name: 'My Real Trip' }));

@@ -149,7 +149,7 @@ def trigger_disruption(
 
     non_healthy = [n for n in nodes if impacts[n.id].status != "healthy" and n.id != primary_node.id]
     downstream_impact = len(non_healthy)
-    financial = _financial_engine.summarize([to_engine_node(n) for n in nodes], impacts)
+    financial = _financial_engine.summarize([to_engine_node(n) for n in nodes], impacts, detected_at)
 
     broken_count = sum(1 for n in nodes if impacts[n.id].status in ("broken", "cancelled"))
     if broken_count >= 1 and downstream_impact >= 3:

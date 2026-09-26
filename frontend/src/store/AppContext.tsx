@@ -14,6 +14,7 @@ import { ApiError } from '@/services/api';
 
 export type AppPhase = 'idle' | 'disrupted' | 'analyzing' | 'recovering' | 'recovered';
 
+<<<<<<< HEAD
 const DEFAULT_TRIP_ID = 'trip-ladakh-2025';
 const DEMO_TRIP_ID = 'demo-golden-triangle';
 const tripKey = () => `safarsathi.tripId.${api.getDataMode()}`;
@@ -34,6 +35,14 @@ function rememberTripId(tripId: string) {
   } catch {
     /* storage unavailable - selection lasts for this session only */
   }
+=======
+/** Guard for every action that needs an active trip. `tripId` is null until the
+ * traveler's own trip list has loaded (and stays null if they have none), so
+ * no call can ever silently target some default/demo trip instead. */
+function requireTripId(tripId: string | null): string {
+  if (!tripId) throw new ApiError('Create or select a trip first.', 400);
+  return tripId;
+>>>>>>> origin/shreya
 }
 const CASCADE_STEP_MS = 450;
 
@@ -59,7 +68,8 @@ const EMPTY_TRIP: Trip = {
 };
 
 export interface AppState {
-  tripId: string;
+  /** Null until the traveler's trip list loads - never a hardcoded default. */
+  tripId: string | null;
   trip: Trip;
   /** True when the active trip request came back 404 - i.e. this trip
    * doesn't belong to (or doesn't exist for) the signed-in traveler. Distinct
@@ -249,7 +259,7 @@ function reducer(state: AppState, action: Action): AppState {
 }
 
 const initialState: AppState = {
-  tripId: DEFAULT_TRIP_ID,
+  tripId: null,
   trip: EMPTY_TRIP,
   noTripFound: false,
   preDisruptionTrip: null,
@@ -296,6 +306,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ever one mechanism, and starting a new sequence always cancels the old one
   // first, so a manual trigger can never race a running demo.
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Trips that already 404'd this session, so the not-found fallback below can
+  // never bounce between two unloadable trips forever.
+  const unloadableTripIdsRef = useRef<Set<string>>(new Set());
   const sequenceTokenRef = useRef(0);
 
   const clearTimers = useCallback(() => {
@@ -323,12 +336,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(async () => {
     dispatch({ type: 'LOAD_START' });
+    if (state.tripId === null) {
+      // Nothing selected yet: pick from the traveler's own trips, or show the
+      // honest no-trips state. There is deliberately no default trip to fall
+      // back to - a new user must never land on someone else's demo data.
+      try {
+        const trips = await api.listTrips();
+        if (trips.length > 0) dispatch({ type: 'SWITCH_TRIP', tripId: trips[0].id });
+        else dispatch({ type: 'TRIP_NOT_FOUND' });
+      } catch (err) {
+        dispatch({ type: 'LOAD_ERROR', message: err instanceof ApiError ? err.message : 'Could not load your trips.' });
+      }
+      return;
+    }
+    const tripId = state.tripId;
     try {
       const [trip, activityLog, notifications, preferences] = await Promise.all([
-        api.getItinerary(state.tripId),
-        api.getActivityLog(state.tripId),
-        api.getNotifications(state.tripId),
-        api.getPreferences(state.tripId).catch(() => ({ ...defaultPreferences })),
+        api.getItinerary(tripId),
+        api.getActivityLog(tripId),
+        api.getNotifications(tripId),
+        api.getPreferences(tripId).catch(() => ({ ...defaultPreferences })),
       ]);
       dispatch({ type: 'LOAD_SUCCESS', trip, activityLog, notifications, preferences });
       rememberTripId(trip.id);
@@ -344,18 +371,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        // state.tripId is never persisted (no localStorage) - a fresh page
-        // load, or a first login for anyone but the seeded demo traveler,
-        // always starts from the hardcoded DEFAULT_TRIP_ID, which a real
-        // user who has created their own trip doesn't own. Before concluding
-        // there's genuinely no trip to show, check whether this traveler
-        // owns any trip at all and switch to it - this is what makes a
-        // freshly created trip survive a browser refresh rather than
-        // bouncing back to the seeded trip's 404 every time.
+        // The selected trip no longer exists or isn't owned by this traveler
+        // (e.g. it was deleted, or a different user signed in). Before
+        // concluding there's genuinely no trip to show, fall back to any trip
+        // this traveler does own.
         try {
           const trips = await api.listTrips();
-          if (trips.length > 0) {
-            dispatch({ type: 'SWITCH_TRIP', tripId: trips[0].id });
+          unloadableTripIdsRef.current.add(tripId);
+          const fallback = trips.find((t) => !unloadableTripIdsRef.current.has(t.id));
+          if (fallback) {
+            dispatch({ type: 'SWITCH_TRIP', tripId: fallback.id });
             return;
           }
         } catch {
@@ -393,19 +418,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const addFlightNode = useCallback(async (req: api.FlightCreateRequest) => {
-    const trip = await api.addFlightNode(state.tripId, req);
+    const trip = await api.addFlightNode(requireTripId(state.tripId), req);
     dispatch({ type: 'NODE_ADDED', trip });
     return trip;
   }, [state.tripId]);
 
   const addNode = useCallback(async (req: api.NodeCreateRequest) => {
-    const trip = await api.addNode(state.tripId, req);
+    const trip = await api.addNode(requireTripId(state.tripId), req);
     dispatch({ type: 'NODE_ADDED', trip });
     return trip;
   }, [state.tripId]);
 
   const deleteNode = useCallback(async (nodeId: string) => {
-    const trip = await api.deleteNode(state.tripId, nodeId);
+    const trip = await api.deleteNode(requireTripId(state.tripId), nodeId);
     dispatch({ type: 'NODE_REMOVED', trip });
     return trip;
   }, [state.tripId]);
@@ -455,7 +480,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const token = ++sequenceTokenRef.current;
       dispatch({ type: 'SET_BUSY', busy: true });
       try {
-        const result = await api.triggerDisruption(state.tripId, {
+        const tripId = requireTripId(state.tripId);
+        const result = await api.triggerDisruption(tripId, {
           type,
           primaryNodeId: options?.primaryNodeId,
           delayMinutes: options?.delayMinutes,
@@ -469,10 +495,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (sequenceTokenRef.current !== token) return;
 
         dispatch({ type: 'SET_PHASE', phase: 'analyzing' });
-        const recoveryOptions = await api.generateRecoveryOptions(state.tripId);
+        const recoveryOptions = await api.generateRecoveryOptions(tripId);
         if (sequenceTokenRef.current !== token) return;
         dispatch({ type: 'SET_RECOVERY_OPTIONS', options: recoveryOptions });
-        await refreshActivity(state.tripId);
+        await refreshActivity(tripId);
       } catch (err) {
         dispatch({
           type: 'LOAD_ERROR',
@@ -487,9 +513,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadRecoveryOptions = useCallback(async () => {
     try {
-      const options = await api.generateRecoveryOptions(state.tripId);
+      const tripId = requireTripId(state.tripId);
+      const options = await api.generateRecoveryOptions(tripId);
       dispatch({ type: 'SET_RECOVERY_OPTIONS', options });
-      await refreshActivity(state.tripId);
+      await refreshActivity(tripId);
     } catch (err) {
       dispatch({ type: 'LOAD_ERROR', message: err instanceof ApiError ? err.message : 'Failed to generate recovery options.' });
     }
@@ -504,9 +531,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (state.isBusy) return;
       dispatch({ type: 'SET_BUSY', busy: true });
       try {
-        const result = await api.applyRecovery(state.tripId, recoveryId);
+        const tripId = requireTripId(state.tripId);
+        const result = await api.applyRecovery(tripId, recoveryId);
         dispatch({ type: 'RECOVERY_APPLIED', trip: result.trip, recovery: result.appliedRecovery });
-        await refreshActivity(state.tripId);
+        await refreshActivity(tripId);
       } catch (err) {
         dispatch({ type: 'LOAD_ERROR', message: err instanceof ApiError ? err.message : 'Failed to apply recovery.' });
         throw err;
@@ -522,9 +550,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sequenceTokenRef.current += 1; // invalidate any in-flight cascade animation
     dispatch({ type: 'SET_BUSY', busy: true });
     try {
-      const trip = await api.resetTrip(state.tripId);
+      const tripId = requireTripId(state.tripId);
+      const trip = await api.resetTrip(tripId);
       dispatch({ type: 'TRIP_RESET', trip });
-      await refreshActivity(state.tripId);
+      await refreshActivity(tripId);
     } catch (err) {
       dispatch({ type: 'LOAD_ERROR', message: err instanceof ApiError ? err.message : 'Failed to reset trip.' });
     } finally {
@@ -534,6 +563,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const markNotificationsRead = useCallback(() => {
     dispatch({ type: 'MARK_NOTIFICATIONS_READ' });
+    if (!state.tripId) return;
     api.markNotificationsRead(state.tripId).catch(() => {
       /* best-effort - local state already reflects "read" */
     });
@@ -542,6 +572,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setPreferences = useCallback(
     async (p: TravelerPreferences) => {
       dispatch({ type: 'SET_PREFERENCES', preferences: p });
+      if (!state.tripId) return;
       try {
         await api.setPreferences(state.tripId, p);
       } catch {

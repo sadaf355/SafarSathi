@@ -90,6 +90,13 @@ def _remove_incoming_edges(edges: list[EngineEdge], node_id: str) -> list[Engine
     return [e for e in edges if e.target != node_id]
 
 
+def _notice_hours(node: EngineNode, detected_at: datetime) -> float:
+    """Hours of notice between detecting the disruption and the booking's original
+    start - what cancellation-deadline policies are evaluated against. Never
+    negative: a booking that has already started gets no notice."""
+    return max(0.0, (node.scheduled_start - detected_at).total_seconds() / 3600)
+
+
 def _clone_nodes(nodes: list[EngineNode]) -> dict[str, EngineNode]:
     import copy
 
@@ -352,7 +359,7 @@ class RecoveryEngine:
             refundable=target.refundable,
             refund_percentage=target.refund_percentage,
             cancellation_deadline_hours=target.cancellation_deadline_hours,
-            hours_before_start=0,  # the original booking failed same-day; treat as no-notice cancellation
+            hours_before_start=_notice_hours(target, detected_at),
         )
         cost_delta = round(alt.cost - old_cost, 2)
 
@@ -556,7 +563,7 @@ class RecoveryEngine:
                 refundable=target.refundable,
                 refund_percentage=target.refund_percentage,
                 cancellation_deadline_hours=target.cancellation_deadline_hours,
-                hours_before_start=0,
+                hours_before_start=_notice_hours(target, detected_at),
             )
             residual_risk_percent = self._residual_risk(list(working_nodes.values()), working_edges, impacts_new)
 

@@ -41,6 +41,7 @@ interface AuthContextValue extends AuthState {
   continueAsDemo: () => Promise<void>;
   continueOffline: () => Promise<void>;
   logout: () => void;
+  setEmailNotificationsOptIn: (optIn: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -124,8 +125,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState(signedOut());
   }, []);
 
+  const setEmailNotificationsOptIn = useCallback(async (optIn: boolean) => {
+    const profile = await api.updateMe({ emailNotificationsOptIn: optIn });
+    setState((s) => ({ ...s, profile }));
+  }, []);
+
   return (
+<<<<<<< HEAD
     <AuthContext.Provider value={{ ...state, loginWithPassword, registerAccount, continueAsDemo, continueOffline, logout }}>
+=======
+    <AuthContext.Provider
+      value={{ ...state, loginWithPassword, registerAccount, continueAsDemo, logout, setEmailNotificationsOptIn }}
+    >
+>>>>>>> origin/shreya
       {children}
     </AuthContext.Provider>
   );
