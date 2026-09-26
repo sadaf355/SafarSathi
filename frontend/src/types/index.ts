@@ -3,6 +3,7 @@ export type EdgeStatus = 'healthy' | 'at-risk' | 'broken' | 'recovered';
 
 export type NodeCategory =
   | 'flight'
+  | 'train'
   | 'connection'
   | 'transfer'
   | 'hotel'
@@ -183,7 +184,7 @@ export interface Alert {
 
 export interface Booking {
   id: string;
-  category: 'flight' | 'hotel' | 'transfer' | 'activity' | 'return';
+  category: 'flight' | 'train' | 'hotel' | 'transfer' | 'activity' | 'return';
   provider: string;
   confirmation: string;
   date: string;
@@ -221,6 +222,8 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   references?: { type: 'node' | 'recovery' | 'risk'; id: string; label: string }[];
+  /** Recovery options to render as cards under an assistant reply. */
+  optionIds?: string[];
 }
 
 export interface TravelerPreferences {

@@ -94,6 +94,9 @@ def apply_disruption_override(
 ) -> NodeImpact:
     base = _healthy_impact(node)
 
+    if disruption_type in ("none", "healthy", "recovered", "", None):
+        return base
+
     if disruption_type == "flight-delay":
         delay = delay_minutes or 0
         return replace(

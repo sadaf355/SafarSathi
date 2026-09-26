@@ -1,17 +1,20 @@
-# SafarSathi UI/UX Style Audit
+# Safar Sathi UI design system
 
-## Final polish verification
+The UI recreates the five Safar Sathi reference screens (Dashboard, My Bookings, Live Updates, Recovery Options, AI Assistant) as one visual system.
 
-- `MetricCard.tsx` is a live component: Home uses it for the trip-value statistic with `animate={true}`, so the existing CountUp behavior is exercised in a meaningful location.
-- PageHeader breadcrumbs support keyboard navigation for non-current breadcrumb items when an `onNavigate` handler is supplied. Interactive crumbs have explicit `focus-visible` ring styles and current crumbs use `aria-current="page"`.
-- Sathi's recovery ActionCard has an explicit focus-visible ring on its review/confirm trigger.
-- Sathi's confirmation step uses the shared `Modal` component, which traps Tab/Shift+Tab, focuses the dialog on open, closes on Escape, and restores focus on close.
-- The legacy floating `AIAssistant.tsx` component and the requested orphaned frontend files are absent.
-- Legacy `accent-*`, `electric-*`, and `ink-*` theme tokens are absent from source/config. (Searches use token prefixes rather than generic words such as `shrink-*`.)
-- Legacy glow shadow utilities/keyframes are absent from `tailwind.config.js`; graph status styling uses the normal `shadow-card` token.
-- `safar-saffron` is used as the explicit brand/status token for attention states, including Home and Journey risk indicators.
-- The AI visual treatment remains centralized through `.ai-surface` and the `✦ SAFARSATHI INSIGHT` label.
+## Tokens
+- Colors, type, radii, shadows and motion live in `tailwind.config.js` (`ink`, `canvas`, `line`, `brand`, `safe`, `risk`, `danger`, `ai`).
+- Shared surfaces and controls live in `src/index.css` (`.card`, `.btn-*`, `.pill`, `.field`, `.skeleton`).
+- Status meaning is centralized in `src/lib/status.ts`: green = on track, amber = at risk, red = delayed/disrupted, blue = recovered, purple = AI.
+- Typography: Plus Jakarta Sans for UI, Caveat for the handwritten brand line.
 
-## Verification note
+## Structure
+- `components/layout`: Sidebar, TopBar (global search, notifications, profile), PageHero, ShellActions (simulate / add booking / support dialogs).
+- `components/travel`: DestinationImage, JourneyRoute, RouteMap (Leaflet), TravelCalendar.
+- `components/dashboard`, `components/recovery`, `components/ai`: page-level building blocks.
+- `lib/journey.ts` normalizes backend trips into stops and legs; `lib/recovery.ts` presents recovery options; `lib/destinationImages.ts` resolves imagery.
 
-A dependency-backed Vite/typecheck run could not be completed in the build environment because `node_modules` is not present and `npm ci` timed out while reaching the package registry. The source-level audits above were performed directly against the extracted frontend tree.
+## Accessibility
+- Every interactive element is a real button or link with a visible `focus-visible` ring.
+- Dialogs use the shared `Modal` (focus trap, Escape to close, focus restore, height-capped with internal scroll).
+- Segmented controls use `role="radiogroup"` or `role="tablist"`; the map and charts have text alternatives (tooltips, list view, comparison table).

@@ -11,8 +11,33 @@ import type {
   TravelerPreferences,
 } from '@/types';
 import { getStoredToken } from '@/lib/authStorage';
+import { demoBackend, DemoNotFoundError } from '@/services/demoBackend';
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://127.0.0.1:8008';
+
+/** 'live' talks to the FastAPI backend; 'demo' serves the same contract from
+ * the in-memory offline demo (services/demoBackend.ts). Chosen at sign-in. */
+export type DataMode = 'live' | 'demo';
+let dataMode: DataMode = 'live';
+
+export function setDataMode(mode: DataMode) {
+  dataMode = mode;
+}
+
+export function getDataMode(): DataMode {
+  return dataMode;
+}
+
+const isDemo = () => dataMode === 'demo';
+
+async function viaDemo<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (err) {
+    if (err instanceof DemoNotFoundError) throw new ApiError(err.message, 404);
+    throw err;
+  }
+}
 
 export class ApiError extends Error {
   status: number;
@@ -190,6 +215,7 @@ export interface DisruptionRequest {
 }
 
 export async function listTrips(): Promise<TripSummary[]> {
+  if (isDemo()) return viaDemo(() => demoBackend.listTrips());
   return get<TripSummary[]>('/api/trips');
 }
 
@@ -202,6 +228,7 @@ export interface TripCreateRequest {
 }
 
 export async function createTrip(req: TripCreateRequest): Promise<Trip> {
+  if (isDemo()) return viaDemo(() => demoBackend.createTrip(req));
   return post<Trip>('/api/trips', req);
 }
 
@@ -259,14 +286,16 @@ export type NodeCreateRequest =
   | TransferCreateRequest;
 
 export async function addFlightNode(tripId: string, req: FlightCreateRequest): Promise<Trip> {
-  return post<Trip>(`/api/trips/${tripId}/nodes`, req);
+  return addNode(tripId, req);
 }
 
 export async function addNode(tripId: string, req: NodeCreateRequest): Promise<Trip> {
+  if (isDemo()) return viaDemo(() => demoBackend.addNode(tripId, req));
   return post<Trip>(`/api/trips/${tripId}/nodes`, req);
 }
 
 export async function deleteNode(tripId: string, nodeId: string): Promise<Trip> {
+  if (isDemo()) return viaDemo(() => demoBackend.deleteNode(tripId, nodeId));
   return del<Trip>(`/api/trips/${tripId}/nodes/${nodeId}`);
 }
 
@@ -278,70 +307,87 @@ export interface TripExport {
 }
 
 export async function exportTrip(tripId: string): Promise<TripExport> {
+  if (isDemo()) return viaDemo(() => demoBackend.exportTrip(tripId));
   return get<TripExport>(`/api/trips/${tripId}/export`);
 }
 
 export async function getItinerary(tripId: string): Promise<Trip> {
+  if (isDemo()) return viaDemo(() => demoBackend.getItinerary(tripId));
   return get<Trip>(`/api/trips/${tripId}`);
 }
 
 export async function getGraph(tripId: string): Promise<Trip> {
+  if (isDemo()) return viaDemo(() => demoBackend.getItinerary(tripId));
   return get<Trip>(`/api/trips/${tripId}/graph`);
 }
 
 export async function getRiskAnalysis(tripId: string): Promise<RiskAnalysis> {
+  if (isDemo()) return viaDemo(() => demoBackend.getRiskAnalysis(tripId));
   return get<RiskAnalysis>(`/api/trips/${tripId}/risks`);
 }
 
 export async function getBookings(tripId: string): Promise<Booking[]> {
+  if (isDemo()) return viaDemo(() => demoBackend.getBookings(tripId));
   return get<Booking[]>(`/api/trips/${tripId}/bookings`);
 }
 
 export async function getActivityLog(tripId: string): Promise<ActivityEvent[]> {
+  if (isDemo()) return viaDemo(() => demoBackend.getActivityLog(tripId));
   return get<ActivityEvent[]>(`/api/trips/${tripId}/activity`);
 }
 
 export async function getNotifications(tripId: string): Promise<Notification[]> {
+  if (isDemo()) return viaDemo(() => demoBackend.getNotifications(tripId));
   return get<Notification[]>(`/api/trips/${tripId}/notifications`);
 }
 
 export async function markNotificationsRead(tripId: string): Promise<void> {
+  if (isDemo()) return viaDemo(() => demoBackend.markNotificationsRead(tripId));
   await post<void>(`/api/trips/${tripId}/notifications/read`);
 }
 
 export async function getPreferences(tripId: string): Promise<TravelerPreferences> {
+  if (isDemo()) return viaDemo(() => demoBackend.getPreferences(tripId));
   return get<TravelerPreferences>(`/api/trips/${tripId}/preferences`);
 }
 
 export async function setPreferences(tripId: string, preferences: TravelerPreferences): Promise<void> {
+  if (isDemo()) return viaDemo(() => demoBackend.setPreferences(tripId, preferences));
   await post<void>(`/api/trips/${tripId}/preferences`, preferences);
 }
 
 export async function triggerDisruption(tripId: string, req: DisruptionRequest): Promise<PropagationResult> {
+  if (isDemo()) return viaDemo(() => demoBackend.triggerDisruption(tripId, req));
   return post<PropagationResult>(`/api/trips/${tripId}/disruptions`, req);
 }
 
 export async function simulateDisruption(tripId: string, req: DisruptionRequest): Promise<PropagationResult> {
+  if (isDemo()) return viaDemo(() => demoBackend.simulateDisruption(tripId, req));
   return post<PropagationResult>(`/api/trips/${tripId}/simulate`, req);
 }
 
 export async function repropagate(tripId: string): Promise<PropagationResult> {
+  if (isDemo()) return viaDemo(() => demoBackend.repropagate(tripId));
   return post<PropagationResult>(`/api/trips/${tripId}/propagate`);
 }
 
 export async function generateRecoveryOptions(tripId: string): Promise<RecoveryOption[]> {
+  if (isDemo()) return viaDemo(() => demoBackend.generateRecoveryOptions(tripId));
   return post<RecoveryOption[]>(`/api/trips/${tripId}/recovery-options/generate`);
 }
 
 export async function applyRecovery(tripId: string, recoveryId: string): Promise<ApplyRecoveryResult> {
+  if (isDemo()) return viaDemo(() => demoBackend.applyRecovery(tripId, recoveryId));
   return post<ApplyRecoveryResult>(`/api/trips/${tripId}/recovery/apply`, { recoveryId });
 }
 
 export async function resetTrip(tripId: string): Promise<Trip> {
+  if (isDemo()) return viaDemo(() => demoBackend.resetTrip(tripId));
   return post<Trip>(`/api/trips/${tripId}/reset`);
 }
 
 export async function askAssistant(tripId: string, message: string): Promise<AssistantAnswer> {
+  if (isDemo()) return viaDemo(() => demoBackend.askAssistant(tripId, message));
   return post<AssistantAnswer>('/api/assistant', { tripId, message });
 }
 
@@ -394,5 +440,6 @@ export async function getDemoAccount(): Promise<AuthResponse> {
 }
 
 export async function getMe(): Promise<TravelerProfile> {
+  if (isDemo()) return demoBackend.profile();
   return get<TravelerProfile>('/api/auth/me');
 }

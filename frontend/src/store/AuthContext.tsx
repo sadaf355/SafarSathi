@@ -5,52 +5,76 @@ import { clearStoredToken, getStoredToken, setStoredToken } from '@/lib/authStor
 
 export type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
 
+const DATA_MODE_KEY = 'safarsathi.dataMode';
+
+function readStoredMode(): api.DataMode {
+  try {
+    return localStorage.getItem(DATA_MODE_KEY) === 'demo' ? 'demo' : 'live';
+  } catch {
+    return 'live';
+  }
+}
+
+function storeMode(mode: api.DataMode) {
+  try {
+    if (mode === 'demo') localStorage.setItem(DATA_MODE_KEY, 'demo');
+    else localStorage.removeItem(DATA_MODE_KEY);
+  } catch {
+    /* storage unavailable - mode still applies for this session */
+  }
+}
+
 interface AuthState {
   status: AuthStatus;
   profile: api.TravelerProfile | null;
   busy: boolean;
   error: string | null;
+  /** True when the last failure was a network error (backend unreachable). */
+  offline: boolean;
   wakingServer: boolean;
+  dataMode: api.DataMode;
 }
 
 interface AuthContextValue extends AuthState {
   loginWithPassword: (email: string, password: string) => Promise<void>;
   registerAccount: (name: string, email: string, password: string) => Promise<void>;
   continueAsDemo: () => Promise<void>;
+  continueOffline: () => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    status: 'checking',
-    profile: null,
-    busy: false,
-    error: null,
-    wakingServer: false,
-  });
+const signedOut = (dataMode: api.DataMode = 'live'): AuthState => ({ status: 'unauthenticated', profile: null, busy: false, error: null, offline: false, wakingServer: false, dataMode });
 
-  const loadProfile = useCallback(async () => {
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>({ ...signedOut(), status: 'checking' });
+
+  const loadProfile = useCallback(async (dataMode: api.DataMode) => {
     const profile = await api.getMe();
-    setState({ status: 'authenticated', profile, busy: false, error: null, wakingServer: false });
+    setState({ status: 'authenticated', profile, busy: false, error: null, offline: false, wakingServer: false, dataMode });
   }, []);
 
   useEffect(() => {
-    if (!getStoredToken()) {
-      setState((s) => ({ ...s, status: 'unauthenticated' }));
+    const mode = readStoredMode();
+    api.setDataMode(mode);
+    if (mode === 'live' && !getStoredToken()) {
+      setState(signedOut());
       return;
     }
-    loadProfile().catch(() => {
+    loadProfile(mode).catch(() => {
       // Stored token is stale/invalid (e.g. server restarted with a new auth
-      // secret) - fall back to the login screen rather than looping forever.
+      // secret) - fall back to the sign-in screen rather than looping forever.
       clearStoredToken();
-      setState({ status: 'unauthenticated', profile: null, busy: false, error: null, wakingServer: false });
+      storeMode('live');
+      api.setDataMode('live');
+      setState(signedOut());
     });
   }, [loadProfile]);
 
   const withAuthResponse = useCallback(async (call: () => Promise<api.AuthResponse>) => {
-    setState((s) => ({ ...s, busy: true, error: null, wakingServer: false }));
+    api.setDataMode('live');
+    setState((s) => ({ ...s, busy: true, error: null, offline: false, wakingServer: false }));
     // The backend can be cold (Render free-tier spin-down) the first time
     // someone hits it; api.ts retries automatically, this just reflects that
     // retry in the UI so the user sees "waking up" instead of a stuck spinner.
@@ -58,12 +82,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const auth = await call();
       setStoredToken(auth.token);
-      await loadProfile();
+      storeMode('live');
+      await loadProfile('live');
     } catch (err) {
       setState((s) => ({
         ...s,
         busy: false,
         wakingServer: false,
+        offline: err instanceof ApiError && err.status === 0,
         error: err instanceof ApiError ? err.message : 'Something went wrong. Please try again.',
       }));
       throw err;
@@ -84,13 +110,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const continueAsDemo = useCallback(() => withAuthResponse(() => api.getDemoAccount()), [withAuthResponse]);
 
+  const continueOffline = useCallback(async () => {
+    clearStoredToken();
+    storeMode('demo');
+    api.setDataMode('demo');
+    await loadProfile('demo');
+  }, [loadProfile]);
+
   const logout = useCallback(() => {
     clearStoredToken();
-    setState({ status: 'unauthenticated', profile: null, busy: false, error: null, wakingServer: false });
+    storeMode('live');
+    api.setDataMode('live');
+    setState(signedOut());
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, loginWithPassword, registerAccount, continueAsDemo, logout }}>
+    <AuthContext.Provider value={{ ...state, loginWithPassword, registerAccount, continueAsDemo, continueOffline, logout }}>
       {children}
     </AuthContext.Provider>
   );

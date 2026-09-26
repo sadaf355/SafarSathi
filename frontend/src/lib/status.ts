@@ -17,8 +17,27 @@ export const edgeColors: Record<EdgeStatus, string> = {
 };
 
 export const statusLabel: Record<NodeStatus, string> = {
-  healthy: 'Healthy', 'at-risk': 'At Risk', broken: 'Broken', delayed: 'Delayed', cancelled: 'Cancelled', recovered: 'Recovered',
+  healthy: 'On Track', 'at-risk': 'At Risk', broken: 'Broken', delayed: 'Delayed', cancelled: 'Cancelled', recovered: 'Recovered',
 };
+
+/** Semantic tones shared by every status surface: green = on track,
+ * amber = at risk, red = disrupted, blue = recovered/informational, purple = AI. */
+export type Tone = 'safe' | 'risk' | 'danger' | 'brand' | 'ai' | 'muted';
+
+export const statusTone: Record<NodeStatus, Tone> = {
+  healthy: 'safe', 'at-risk': 'risk', delayed: 'danger', broken: 'danger', cancelled: 'danger', recovered: 'brand',
+};
+
+export const toneClasses: Record<Tone, { pill: string; icon: string; text: string; solid: string; hex: string }> = {
+  safe: { pill: 'bg-safe-light text-safe', icon: 'bg-safe-light text-safe', text: 'text-safe', solid: 'bg-safe', hex: '#16A34A' },
+  risk: { pill: 'bg-risk-light text-risk-dark', icon: 'bg-risk-light text-risk', text: 'text-risk-dark', solid: 'bg-risk', hex: '#F59E0B' },
+  danger: { pill: 'bg-danger-light text-danger-dark', icon: 'bg-danger-light text-danger', text: 'text-danger', solid: 'bg-danger', hex: '#EF4444' },
+  brand: { pill: 'bg-brand-light text-brand', icon: 'bg-brand-light text-brand', text: 'text-brand', solid: 'bg-brand', hex: '#1F6BFF' },
+  ai: { pill: 'bg-ai-light text-ai', icon: 'bg-ai-light text-ai', text: 'text-ai', solid: 'bg-ai', hex: '#7C3AED' },
+  muted: { pill: 'bg-canvas text-ink-muted', icon: 'bg-canvas text-ink-muted', text: 'text-ink-muted', solid: 'bg-ink-faint', hex: '#8A97AD' },
+};
+
+export const riskTone: Record<'low' | 'medium' | 'high', Tone> = { low: 'safe', medium: 'risk', high: 'danger' };
 
 export function formatCurrency(amount: number): string { return `₹${amount.toLocaleString('en-IN')}`; }
 export function formatDuration(minutes: number): string {

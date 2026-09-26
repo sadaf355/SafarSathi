@@ -1,97 +1,160 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppProvider, useApp } from '@/store/AppContext';
 import { AuthProvider, useAuth } from '@/store/AuthContext';
 import { ToastProvider, useToast } from '@/components/ui/ToastProvider';
+import { RouterProvider, useRouter } from '@/lib/router';
 import { LoginScreen } from '@/components/auth/LoginScreen';
-import { LandingPage } from '@/components/landing/LandingPage';
-import { Sidebar, type PageId } from '@/components/shell/Sidebar';
-import { TopBar } from '@/components/shell/TopBar';
-import { Overview } from '@/pages/Overview';
-import { Trips } from '@/pages/Trips';
-import { JourneyPage } from '@/pages/JourneyPage';
-import { RiskIntelligence } from '@/pages/RiskIntelligence';
-import { RecoveryCenter } from '@/components/recovery/RecoveryCenter';
-import { ImpactPage } from '@/pages/ImpactPage';
-import { SathiPage } from '@/pages/SathiPage';
-import { MorePage } from '@/pages/MorePage';
+import { LandingPage } from '@/landing/LandingPage';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { TopBar } from '@/components/layout/TopBar';
+import { ShellActionsProvider, useShellActions } from '@/components/layout/ShellActions';
+import { LogoMark } from '@/components/brand/Logo';
 import { NetworkStatusBanner } from '@/components/ui/NetworkStatusBanner';
-import { LifeBuoy, WifiOff, Briefcase } from 'lucide-react';
+import { DashboardPage } from '@/pages/DashboardPage';
+import { BookingsPage } from '@/pages/BookingsPage';
+import { LiveUpdatesPage } from '@/pages/LiveUpdatesPage';
+import { RecoveryPage } from '@/pages/RecoveryPage';
+import { AssistantPage } from '@/pages/AssistantPage';
+import { ClaimsPage } from '@/pages/ClaimsPage';
+import { SettingsPage } from '@/pages/SettingsPage';
+import { TripDetailsPage } from '@/pages/TripDetailsPage';
+import { BriefcaseBusiness, WifiOff } from 'lucide-react';
 
-type AppPage = PageId;
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-const NARROW_VIEWPORT_QUERY = '(max-width: 768px)';
+/** Set by the landing page's "Watch Demo": play the guided demo once the app loads. */
+const AUTO_DEMO_KEY = 'safarsathi.autoDemo';
 
 function AppContent() {
-  const [page, setPage] = useState<AppPage>('overview');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => typeof window !== 'undefined' && window.matchMedia(NARROW_VIEWPORT_QUERY).matches);
-  const [sathiOverlay, setSathiOverlay] = useState(false);
-  const { triggerDisruption, applyRecoveryPlan, resetTrip, setDemoRunning, demoRunning, isBusy, recoveryOptions, error, reload, noTripFound } = useApp();
+  const { route, navigate } = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { triggerDisruption, applyRecoveryPlan, resetTrip, setDemoRunning, demoRunning, isBusy, recoveryOptions, error, reload, noTripFound, trip, loading } = useApp();
   const { addToast } = useToast();
+  const { openCreateTrip } = useShellActions();
   const demoCancelledRef = useRef(false);
   const recoveryOptionsRef = useRef(recoveryOptions);
   useEffect(() => { recoveryOptionsRef.current = recoveryOptions; }, [recoveryOptions]);
 
-  const navigate = useCallback((next: string) => setPage(next as AppPage), []);
-  useEffect(() => {
-    const query = window.matchMedia(NARROW_VIEWPORT_QUERY);
-    const handler = (e: MediaQueryListEvent) => setSidebarCollapsed(e.matches);
-    query.addEventListener('change', handler);
-    return () => query.removeEventListener('change', handler);
-  }, []);
-
+  /** Guided demo: reset → disruption → recovery options → apply & re-validate. */
   const runDemo = useCallback(async () => {
     if (demoRunning || isBusy) return;
-    demoCancelledRef.current = false; setDemoRunning(true);
-    addToast('info', 'Demo Mode Started', 'Watch SafarSathi move from disruption to recovery.');
+    demoCancelledRef.current = false;
+    setDemoRunning(true);
+    addToast('info', 'Guided demo started', 'Watch Safar Sathi move from disruption to recovery.');
     try {
-      await resetTrip(); setPage('overview'); await wait(650);
+      await resetTrip();
+      navigate('dashboard');
+      await wait(700);
       if (demoCancelledRef.current) return;
-      await triggerDisruption('flight-delay', { delayMinutes: 180 });
+      await triggerDisruption('flight-delay', { delayMinutes: 95 });
       if (demoCancelledRef.current) return;
-      await wait(900); setPage('impact'); await wait(1800);
-      if (demoCancelledRef.current) return;
+      await wait(1600);
+      navigate('recovery');
+      await wait(2200);
       const top = recoveryOptionsRef.current.filter((o) => o.feasible !== false).sort((a, b) => b.score - a.score)[0];
-      if (top) { setPage('recovery'); await wait(1800); if (!demoCancelledRef.current) { await applyRecoveryPlan(top.id); addToast('success', 'Journey Recovered', `${top.bookingsPreserved}/${top.totalBookings} commitments preserved.`); } }
-    } catch { addToast('error', 'Demo Interrupted', 'Check the backend connection and try again.'); }
-    finally { setDemoRunning(false); }
-  }, [demoRunning, isBusy, resetTrip, triggerDisruption, applyRecoveryPlan, addToast, setDemoRunning]);
+      if (top && !demoCancelledRef.current) {
+        await applyRecoveryPlan(top.id);
+        addToast('success', 'Journey recovered', `${top.bookingsPreserved}/${top.totalBookings} bookings preserved and re-validated.`);
+      }
+    } catch {
+      addToast('error', 'Demo interrupted', 'Check the backend connection and try again.');
+    } finally {
+      setDemoRunning(false);
+    }
+  }, [demoRunning, isBusy, resetTrip, triggerDisruption, applyRecoveryPlan, addToast, setDemoRunning, navigate]);
 
-  const handleReset = useCallback(async () => { demoCancelledRef.current = true; await resetTrip(); addToast('info', 'Journey Reset', 'Your itinerary is back to its healthy state.'); }, [resetTrip, addToast]);
+  useEffect(() => {
+    if (loading || !trip.id) return;
+    let pending = false;
+    try {
+      pending = sessionStorage.getItem(AUTO_DEMO_KEY) === '1';
+      sessionStorage.removeItem(AUTO_DEMO_KEY);
+    } catch {
+      /* storage unavailable */
+    }
+    if (pending) runDemo();
+  }, [loading, trip.id, runDemo]);
+
+  const handleReset = useCallback(async () => {
+    demoCancelledRef.current = true;
+    await resetTrip();
+    addToast('info', 'Journey reset', 'Your itinerary is back to its original schedule.');
+  }, [resetTrip, addToast]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
-      <Sidebar current={page} onNavigate={navigate} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((v) => !v)} />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <TopBar current={page} onOpenAI={() => setSathiOverlay(true)} onRunDemo={runDemo} onReset={handleReset} />
-        {error && <div className="flex items-center gap-2 border-b border-safar-broken/20 bg-safar-broken/5 px-6 py-2 text-xs text-safar-broken"><WifiOff className="h-3.5 w-3.5" /><span>{error}</span><button onClick={() => reload()} className="ml-auto rounded-lg border border-safar-broken/20 bg-white px-2 py-1">Retry</button></div>}
-        <main className="flex-1 overflow-y-auto scrollbar-thin p-5 lg:p-7">
-          {noTripFound && page !== 'trips' ? (
-            <div className="flex min-h-full items-center justify-center p-8"><div className="max-w-md text-center"><div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-card"><Briefcase className="h-7 w-7" /></div><h2 className="text-xl font-semibold text-slate-900">No trips yet</h2><p className="mt-2 text-sm text-slate-600">Create your first journey to start monitoring risks and recovery options.</p><button onClick={() => navigate('trips')} className="mt-5 rounded-xl bg-safar-blue px-4 py-2.5 text-sm font-semibold text-white">Create a trip</button></div></div>
+    <div className="flex h-screen overflow-hidden">
+      <button onClick={() => document.getElementById('main-scroll')?.focus()} className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow-lift">Skip to content</button>
+      <Sidebar mobileOpen={menuOpen} onCloseMobile={() => setMenuOpen(false)} />
+      <main id="main-scroll" tabIndex={-1} className="relative min-w-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin">
+        <TopBar onOpenMenu={() => setMenuOpen(true)} onRunDemo={runDemo} onReset={handleReset} />
+        {error && (
+          <div role="alert" className="relative z-30 mx-4 mb-2 flex items-center gap-2 rounded-2xl border border-danger/20 bg-white/95 px-4 py-2.5 text-sm text-danger shadow-card sm:mx-6 lg:mx-8">
+            <WifiOff className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1">{error}</span>
+            <button onClick={() => reload()} className="btn-ghost px-3 py-1.5 text-xs">Retry</button>
+          </div>
+        )}
+        <div className="px-4 pb-10 sm:px-6 lg:px-8">
+          {noTripFound && route !== 'bookings' && route !== 'settings' ? (
+            <div className="relative z-10 flex min-h-[60vh] items-center justify-center">
+              <div className="card max-w-md p-8 text-center">
+                <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-light text-brand"><BriefcaseBusiness className="h-8 w-8" /></span>
+                <h1 className="mt-4 font-display text-xl font-bold text-ink">No trips yet</h1>
+                <p className="mt-2 text-sm text-ink-muted">Create your first journey to start monitoring disruptions and recovery options.</p>
+                <button onClick={openCreateTrip} className="btn-primary mt-5">Create a trip</button>
+              </div>
+            </div>
           ) : (
-            <div key={page} className="animate-fade-in">
-              {page === 'overview' && <Overview onNavigate={navigate} />}
-              {page === 'journey' && <JourneyPage onNavigate={navigate} />}
-              {page === 'risk' && <RiskIntelligence onNavigate={navigate} />}
-              {page === 'trips' && <Trips onNavigate={navigate} />}
-              {page === 'sathi' && <SathiPage onClose={() => navigate('overview')} />}
-              {page === 'more' && <MorePage onNavigate={navigate} onRunDemo={runDemo} />}
-              {page === 'impact' && <ImpactPage onNavigate={navigate} />}
-              {page === 'recovery' && <RecoveryCenter onNavigate={navigate} />}
+            <div key={route}>
+              {route === 'dashboard' && <DashboardPage />}
+              {route === 'bookings' && <BookingsPage />}
+              {route === 'live' && <LiveUpdatesPage />}
+              {route === 'recovery' && <RecoveryPage />}
+              {route === 'assistant' && <AssistantPage />}
+              {route === 'claims' && <ClaimsPage />}
+              {route === 'settings' && <SettingsPage />}
+              {route === 'trip' && <TripDetailsPage />}
             </div>
           )}
-        </main>
-      </div>
-      <SathiPage open={sathiOverlay} overlay onClose={() => setSathiOverlay(false)} />
+        </div>
+      </main>
       <NetworkStatusBanner />
     </div>
   );
 }
 
 function Gate() {
-  const { status } = useAuth();
-  const [pastLanding, setPastLanding] = useState(false);
-  if (status === 'checking') return <div className="flex h-screen items-center justify-center bg-slate-50"><LifeBuoy className="h-6 w-6 animate-pulse text-safar-blue" /></div>;
-  if (status === 'unauthenticated') return !pastLanding ? <LandingPage onEnter={() => setPastLanding(true)} /> : <LoginScreen />;
-  return <AppProvider><ToastProvider><AppContent /></ToastProvider></AppProvider>;
+  const { status, dataMode, continueOffline } = useAuth();
+  const [view, setView] = useState<'landing' | 'login'>(() => (window.location.hash === '#/login' ? 'login' : 'landing'));
+  const watchDemo = useCallback(async () => {
+    try {
+      sessionStorage.setItem(AUTO_DEMO_KEY, '1');
+    } catch {
+      /* storage unavailable - the demo still opens, just without autoplay */
+    }
+    window.location.hash = '/dashboard';
+    await continueOffline();
+  }, [continueOffline]);
+  if (status === 'checking') {
+    return <div className="flex h-screen items-center justify-center bg-canvas"><LogoMark className="h-14 w-24 animate-pulse-soft" /></div>;
+  }
+  if (status === 'unauthenticated') {
+    return view === 'login'
+      ? <LoginScreen onBack={() => { setView('landing'); window.scrollTo(0, 0); }} />
+      : <LandingPage onGetStarted={() => { setView('login'); window.scrollTo(0, 0); }} onWatchDemo={watchDemo} />;
+  }
+  return (
+    // Keyed on the data source so switching between live and demo starts clean.
+    <AppProvider key={dataMode}>
+      <ToastProvider>
+        <RouterProvider>
+          <ShellActionsProvider>
+            <AppContent />
+          </ShellActionsProvider>
+        </RouterProvider>
+      </ToastProvider>
+    </AppProvider>
+  );
 }
-export default function App() { return <AuthProvider><Gate /></AuthProvider>; }
+
+export default function App() {
+  return <AuthProvider><Gate /></AuthProvider>;
+}
