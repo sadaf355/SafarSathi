@@ -66,8 +66,8 @@ function SidebarContent({ expanded = false, onNavigate }: { expanded?: boolean; 
 
   return (
     <div className="scrollbar-none relative flex h-full flex-col overflow-y-auto">
-      <button onClick={() => { navigate('dashboard'); onNavigate?.(); }} className={cn('px-6 pb-6 pt-6 text-left', !expanded && 'flex justify-center px-0 xl:block xl:px-6')} aria-label="Safar Sathi dashboard">
-        {expanded ? <Logo /> : <><LogoMark className="h-10 w-10 xl:hidden" /><Logo className="hidden xl:flex" /></>}
+      <button onClick={() => { navigate('dashboard'); onNavigate?.(); }} className={cn('px-5 pb-6 pt-6 text-left', !expanded && 'flex justify-center px-0 xl:block xl:px-5')} aria-label="Safar Sathi dashboard">
+        {expanded ? <Logo size="sm" /> : <><LogoMark className="h-10 w-14 xl:hidden" /><Logo size="sm" className="hidden xl:flex" /></>}
       </button>
       <nav className="space-y-1.5 px-3.5" aria-label="Primary">
         {primaryNav.map(item)}

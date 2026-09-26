@@ -11,15 +11,23 @@ interface PageHeroProps {
   /** Wide landmark photograph that fades into the page from the right. */
   image?: string;
   script?: string[];
+  /** Illustration shown on the right on wide screens (instead of a photo). */
+  art?: ReactNode;
   actions?: ReactNode;
   className?: string;
 }
 
 /** Page header shared by every screen: large title, supporting copy, and an
  * optional landmark photograph that sits behind the top bar on the right. */
-export function PageHero({ title, titleAddon, subtitle, description, image, script, actions, className }: PageHeroProps) {
+export function PageHero({ title, titleAddon, subtitle, description, image, script, art, actions, className }: PageHeroProps) {
   return (
     <>
+      {art && (
+        <div className="pointer-events-none absolute right-0 top-0 z-0 hidden h-[330px] w-[62%] min-[1400px]:block" aria-hidden="true">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_65%_70%_at_62%_45%,rgba(31,107,255,.14),rgba(18,181,229,.08)_45%,transparent_75%)]" />
+          <div className="absolute right-8 top-[92px]">{art}</div>
+        </div>
+      )}
       {image && (
         <div className="pointer-events-none absolute right-0 top-0 z-0 h-[250px] w-full overflow-hidden sm:h-[270px] lg:w-[68%]" aria-hidden="true">
           <img src={image} alt="" className="mask-fade-left h-full w-full object-cover" />
@@ -34,8 +42,8 @@ export function PageHero({ title, titleAddon, subtitle, description, image, scri
           )}
         </div>
       )}
-      <div className={cn('relative z-10 flex flex-wrap items-start justify-between gap-4 pb-6 pt-4', className)}>
-        <div className="min-w-0 max-w-2xl">
+      <div className={cn('relative z-10 flex flex-wrap items-start justify-between gap-4 pb-6 pt-4', !!art && 'min-[1400px]:min-h-[250px]', className)}>
+        <div className={cn('min-w-0 max-w-2xl', !!art && 'min-[1400px]:max-w-[560px]')}>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-display text-[30px] font-extrabold leading-tight tracking-tight text-ink sm:text-[38px]">{title}</h1>
             {titleAddon}

@@ -32,7 +32,7 @@ export function TopBar({ onOpenMenu, onRunDemo, onReset }: TopBarProps) {
       <button onClick={onOpenMenu} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-white text-ink shadow-card md:hidden" aria-label="Open navigation">
         <Menu className="h-5 w-5" />
       </button>
-      <LogoMark className="hidden h-9 w-9 shrink-0 max-md:block max-sm:hidden" />
+      <LogoMark className="hidden h-9 w-16 shrink-0 max-md:block max-sm:hidden" />
       <SearchCommand />
       <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
         <Notifications />

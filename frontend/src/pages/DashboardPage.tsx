@@ -3,6 +3,7 @@ import { useAuth } from '@/store/AuthContext';
 import { useRouter } from '@/lib/router';
 import { useAllTrips, useJourney } from '@/hooks/useTravelData';
 import { PageHero } from '@/components/layout/PageHero';
+import { ItineraryStrip } from '@/components/brand/ItineraryArt';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { JourneyRoute } from '@/components/travel/JourneyRoute';
 import { RouteMap } from '@/components/travel/RouteMap';
@@ -11,7 +12,6 @@ import { HelpCard } from '@/components/dashboard/HelpCard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatDateRange, tripType } from '@/lib/journey';
-import { sceneImages } from '@/lib/destinationImages';
 import { AlertCircle, ArrowRight, ArrowUp, Plane, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
 
 function greeting(now = new Date()) {
@@ -42,8 +42,7 @@ export function DashboardPage() {
         title={<>{greeting()}, {firstName} <span aria-hidden="true">👋</span></>}
         subtitle="Your journey, always with you."
         description="We monitor your trips, detect disruptions, and find the best recovery options — so you can focus on the journey, not the stress."
-        image={sceneImages.heroIndiaGate}
-        script={['Same Destinations.', 'Fewer Disruptions.']}
+        art={<ItineraryStrip />}
       />
 
       <div className="relative z-10 space-y-6">

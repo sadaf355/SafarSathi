@@ -54,7 +54,6 @@ export const sceneImages = {
   train: scene('train'),
   transfer: scene('transfer'),
   hotel: scene('hotel'),
-  heroIndiaGate: scene('hero-india-gate'),
   heroTajMahal: scene('hero-taj-mahal'),
   sidebarCoast: scene('sidebar-coast'),
   bannerMountains: scene('banner-mountains'),

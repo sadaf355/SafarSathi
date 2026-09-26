@@ -134,7 +134,7 @@ function Gate() {
     await continueOffline();
   }, [continueOffline]);
   if (status === 'checking') {
-    return <div className="flex h-screen items-center justify-center bg-canvas"><LogoMark className="h-12 w-12 animate-pulse-soft" /></div>;
+    return <div className="flex h-screen items-center justify-center bg-canvas"><LogoMark className="h-14 w-24 animate-pulse-soft" /></div>;
   }
   if (status === 'unauthenticated') {
     return view === 'login'

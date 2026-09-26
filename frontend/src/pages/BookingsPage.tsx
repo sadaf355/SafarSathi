@@ -5,6 +5,7 @@ import { useRouter } from '@/lib/router';
 import { useAllTrips } from '@/hooks/useTravelData';
 import * as api from '@/services/api';
 import { PageHero } from '@/components/layout/PageHero';
+import { ItineraryStrip } from '@/components/brand/ItineraryArt';
 import { useShellActions } from '@/components/layout/ShellActions';
 import { DestinationImage } from '@/components/travel/DestinationImage';
 import { TravelCalendar } from '@/components/travel/TravelCalendar';
@@ -82,7 +83,7 @@ export function BookingsPage() {
 
   return (
     <div className="animate-fade-in">
-      <PageHero title="My Bookings" subtitle="All your travel plans in one place." image={sceneImages.heroIndiaGate} script={['Explore', 'Plan', 'Travel Stress-Free.']} />
+      <PageHero title="My Bookings" subtitle="All your travel plans in one place." art={<ItineraryStrip />} />
 
       <div className="relative z-10 space-y-5">
         <div className="card flex flex-col gap-3 p-2.5 lg:flex-row lg:items-center">
