@@ -18,6 +18,7 @@ import { AssistantPage } from '@/pages/AssistantPage';
 import { ClaimsPage } from '@/pages/ClaimsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { TripDetailsPage } from '@/pages/TripDetailsPage';
+import { DigitalTwinPage } from '@/pages/DigitalTwinPage';
 import { BriefcaseBusiness, WifiOff } from 'lucide-react';
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -112,6 +113,7 @@ function AppContent() {
               {route === 'claims' && <ClaimsPage />}
               {route === 'settings' && <SettingsPage />}
               {route === 'trip' && <TripDetailsPage />}
+              {route === 'digital-twin' && <DigitalTwinPage />}
             </div>
           )}
         </div>
@@ -138,7 +140,7 @@ function Gate() {
   }
   if (status === 'unauthenticated') {
     return view === 'login'
-      ? <LoginScreen onBack={() => { setView('landing'); window.scrollTo(0, 0); }} />
+      ? <ToastProvider><LoginScreen onBack={() => { setView('landing'); window.scrollTo(0, 0); }} /></ToastProvider>
       : <LandingPage onGetStarted={() => { setView('login'); window.scrollTo(0, 0); }} onWatchDemo={watchDemo} />;
   }
   return (

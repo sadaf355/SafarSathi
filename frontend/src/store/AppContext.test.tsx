@@ -90,7 +90,22 @@ beforeEach(() => {
     disruptionVsComfort: 50,
     recoveryPriorities: { minimizeCost: false, minimizeTime: false, minimizeDisruption: true, maximizeComfort: false },
   });
-  vi.mocked(api.listTrips).mockResolvedValue([]);
+  vi.mocked(api.listTrips).mockResolvedValue([
+    {
+      id: 'trip-1',
+      name: 'Test Trip',
+      route: 'A to B',
+      origin: 'A',
+      destination: 'B',
+      startDate: '2025-09-01',
+      endDate: '2025-09-05',
+      tripValue: 1000,
+      healthScore: 100,
+      status: 'operational',
+      nodeCount: 2,
+      edgeCount: 1,
+    } as api.TripSummary,
+  ]);
 });
 
 describe('AppContext', () => {
@@ -102,7 +117,7 @@ describe('AppContext', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.trip.name).toBe('Test Trip');
     expect(result.current.error).toBeNull();
-    expect(api.getItinerary).toHaveBeenCalledWith('trip-ladakh-2025');
+    expect(api.getItinerary).toHaveBeenCalledWith('trip-1');
   });
 
   it('loads persisted preferences from the backend instead of always resetting to defaults', async () => {
@@ -141,6 +156,7 @@ describe('AppContext', () => {
   });
 
   it('does not display the seeded demo trip for a new user who owns no trip (404)', async () => {
+    vi.mocked(api.listTrips).mockResolvedValue([]);
     vi.mocked(api.getItinerary).mockRejectedValue(new api.ApiError('Trip not found', 404));
 
     const { result } = renderHook(() => useApp(), { wrapper });
@@ -164,6 +180,7 @@ describe('AppContext', () => {
     expect(result.current.noTripFound).toBe(false);
 
     vi.mocked(api.getItinerary).mockRejectedValue(new api.ApiError('Trip not found', 404));
+    vi.mocked(api.listTrips).mockResolvedValue([]);
     act(() => {
       result.current.switchTrip('someone-elses-trip');
     });
@@ -197,6 +214,7 @@ describe('AppContext', () => {
     // Gate()) - logging out unmounts it entirely, so a fresh login always
     // gets a brand-new provider instance starting from a clean initial
     // state, never whatever the previous session last held.
+    vi.mocked(api.listTrips).mockResolvedValueOnce([]);
     vi.mocked(api.getItinerary).mockRejectedValueOnce(new api.ApiError('Trip not found', 404));
     const second = renderHook(() => useApp(), { wrapper });
     await waitFor(() => expect(second.result.current.loading).toBe(false));
@@ -212,8 +230,7 @@ describe('AppContext', () => {
     // starts from the hardcoded default on a fresh load (nothing is
     // persisted client-side), which a real user doesn't own, but they do
     // own a genuine trip the backend can list.
-    vi.mocked(api.getItinerary).mockRejectedValueOnce(new api.ApiError('Trip not found', 404));
-    vi.mocked(api.listTrips).mockResolvedValue([
+    vi.mocked(api.listTrips).mockResolvedValueOnce([
       { id: 'trip-mine', name: 'My Real Trip', route: 'A to B', startDate: '2026-01-01', endDate: '2026-01-03', tripValue: 0, healthScore: 100, status: 'operational', nodeCount: 0, edgeCount: 0 },
     ]);
     vi.mocked(api.getItinerary).mockResolvedValueOnce(baseTrip({ id: 'trip-mine', name: 'My Real Trip' }));
@@ -290,7 +307,7 @@ describe('AppContext', () => {
       });
     });
 
-    expect(api.addFlightNode).toHaveBeenCalledWith('trip-ladakh-2025', expect.objectContaining({ title: 'Delhi to Mumbai' }));
+    expect(api.addFlightNode).toHaveBeenCalledWith('trip-1', expect.objectContaining({ title: 'Delhi to Mumbai' }));
     // Trip state was replaced wholesale from the backend's authoritative
     // response - never a client-fabricated node appended to local state.
     expect(result.current.trip.nodes).toHaveLength(1);
@@ -321,7 +338,7 @@ describe('AppContext', () => {
       await result.current.deleteNode('flight-1');
     });
 
-    expect(api.deleteNode).toHaveBeenCalledWith('trip-ladakh-2025', 'flight-1');
+    expect(api.deleteNode).toHaveBeenCalledWith('trip-1', 'flight-1');
     expect(result.current.trip.nodes).toHaveLength(0);
   });
 

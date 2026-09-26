@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,6 +24,53 @@ class Settings(BaseSettings):
     db_pool_recycle_seconds: int = 300
     weather_request_timeout_seconds: float = 3.0
     weather_total_timeout_seconds: float = 4.0
+    # When True, the three demo trips (Ladakh/Goa/Rajasthan) and the demo traveler are created on startup if they don't already exist. Must be False in any real deployment with real users - a real production database should start empty and grow only from real user signups and trip creation.
+    seed_demo_data: bool = False
+
+    # --- Rate limits (SlowAPI syntax, per client IP) for costly endpoints ---
+    disruption_rate_limit: str = "30/minute"
+    recovery_rate_limit: str = "30/minute"
+    assistant_rate_limit: str = "20/minute"
+
+    # --- Auth: when True, requests without a bearer token get 401 instead of
+    # falling back to the default traveler. Turn on for real deployments. ---
+    require_authentication: bool = False
+
+    # --- Background risk prediction ---
+    risk_prediction_enabled: bool = False
+    risk_prediction_interval_minutes: int = 15
+
+    # --- Transactional email. Disabled = emails are logged, never sent. ---
+    email_notifications_enabled: bool = False
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool = True
+    email_from: str = "Safar Sathi <no-reply@safarsathi.app>"
+
+    # --- Observability ---
+    sentry_dsn: str | None = None
+    sentry_traces_sample_rate: float = 0.0
+    log_format: Literal["json", "console"] = "console"
+    log_level: str = "INFO"
+
+    # --- Provider integrations. "live" uses real APIs where configured and
+    # falls back to simulated inventory per request when they fail. ---
+    provider_mode: Literal["mock", "live"] = "mock"
+    amadeus_client_id: str | None = None
+    amadeus_client_secret: str | None = None
+    amadeus_base_url: str = "https://test.api.amadeus.com"
+    provider_timeout_seconds: float = 6.0
+
+    # --- Nugen Intelligence (domain-aligned model for travel reasoning) ---
+    # Base model -> Nugen alignment (scripts/nugen_alignment_dataset.jsonl) ->
+    # deployed aligned model id -> used here. Without a key, Safar Sathi falls
+    # back to its built-in heuristic reasoning engine.
+    nugen_api_key: str | None = None
+    nugen_model_id: str = "safar-sathi-travel-twin-v1"
+    nugen_base_url: str = "https://api.nugen.in"
+    nugen_timeout_seconds: float = 12.0
 
     @property
     def cors_origin_list(self) -> list[str]:

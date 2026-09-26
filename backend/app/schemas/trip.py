@@ -125,6 +125,8 @@ class NodeCreateRequest(CamelModel):
     scheduled_start: datetime
     scheduled_end: datetime
     cost: float = Field(ge=0)
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
 
     @model_validator(mode="after")
     def _validate(self) -> "NodeCreateRequest":

@@ -14,7 +14,6 @@ import { ApiError } from '@/services/api';
 
 export type AppPhase = 'idle' | 'disrupted' | 'analyzing' | 'recovering' | 'recovered';
 
-const DEFAULT_TRIP_ID = 'trip-ladakh-2025';
 const DEMO_TRIP_ID = 'demo-golden-triangle';
 const tripKey = () => `safarsathi.tripId.${api.getDataMode()}`;
 
@@ -25,7 +24,7 @@ function initialTripId(): string {
   } catch {
     /* storage unavailable */
   }
-  return api.getDataMode() === 'demo' ? DEMO_TRIP_ID : DEFAULT_TRIP_ID;
+  return api.getDataMode() === 'demo' ? DEMO_TRIP_ID : '';
 }
 
 function rememberTripId(tripId: string) {
@@ -249,7 +248,7 @@ function reducer(state: AppState, action: Action): AppState {
 }
 
 const initialState: AppState = {
-  tripId: DEFAULT_TRIP_ID,
+  tripId: '',
   trip: EMPTY_TRIP,
   noTripFound: false,
   preDisruptionTrip: null,
@@ -323,6 +322,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(async () => {
     dispatch({ type: 'LOAD_START' });
+    if (!state.tripId) {
+      try {
+        const trips = await api.listTrips();
+        if (trips.length > 0) {
+          dispatch({ type: 'SWITCH_TRIP', tripId: trips[0].id });
+          return;
+        }
+      } catch {
+        // Fall through to honest "no trips" state below.
+      }
+      dispatch({ type: 'TRIP_NOT_FOUND' });
+      return;
+    }
     try {
       const [trip, activityLog, notifications, preferences] = await Promise.all([
         api.getItinerary(state.tripId),

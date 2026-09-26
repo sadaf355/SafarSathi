@@ -34,7 +34,7 @@ export function PreferenceSelector({ value, onChange, busy }: PreferenceSelector
               aria-checked={active}
               onClick={() => onChange(id)}
               disabled={busy}
-              className={cn('flex items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-[15px] font-semibold transition', active ? 'bg-brand text-white shadow-glow' : 'text-ink-soft hover:bg-canvas')}
+              className={cn('flex items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-[15px] font-semibold transition', active ? 'bg-brand text-white shadow-card' : 'text-ink-soft hover:bg-canvas')}
             >
               <Icon className="h-5 w-5" /> {label}
             </button>

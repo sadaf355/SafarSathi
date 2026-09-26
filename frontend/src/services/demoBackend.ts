@@ -11,9 +11,10 @@ import type {
   Trip,
   TripDay,
 } from '@/types';
-import type { RiskAnalysis } from '@/services/api';
+import type { DigitalTwinApplyResult, DigitalTwinSimulation, RiskAnalysis, WeatherScenarioRequest } from '@/services/api';
 import { defaultPreferences } from '@/data/mockData';
 import { nodeKind, parseEndpoints } from '@/lib/journey';
+import { liveSignals, simulateTwin, tripWeather } from '@/services/demoTwin';
 
 /** Offline demo data source. It implements the same contract as the FastAPI
  * backend (see services/api.ts) over in-memory state, so every screen stays
@@ -22,6 +23,8 @@ import { nodeKind, parseEndpoints } from '@/lib/journey';
  * talk to the real API. */
 
 export class DemoNotFoundError extends Error {}
+/** The request conflicts with the trip's current state (HTTP 409 on the live API). */
+export class DemoConflictError extends Error {}
 
 const DEMO_PROFILE = {
   travelerId: 'demo-traveler',
@@ -406,6 +409,10 @@ function pickPrimary(state: DemoTripState, type: string, requested?: string) {
 
 const clone = <T,>(v: T): T => structuredClone(v);
 
+/** Digital Twin simulations awaiting apply, with the schedule they were run against. */
+const twinSims = new Map<string, { sim: DigitalTwinSimulation; fingerprint: string }>();
+const fingerprint = (state: DemoTripState) => state.trip.nodes.map((n) => `${n.id}@${n.scheduledStart}-${n.scheduledEnd}:${n.cost}`).join('|');
+
 // ---- Public API (mirrors services/api.ts) ------------------------------------------
 
 export const demoBackend = {
@@ -548,7 +555,7 @@ export const demoBackend = {
     return clone(stateFor(id).trip);
   },
 
-  async addNode(tripId: string, req: { category: string; title: string; provider: string; confirmation: string; originCode?: string; destinationCode?: string; location?: string; scheduledStart: string; scheduledEnd: string; cost: number }) {
+  async addNode(tripId: string, req: { category: string; title: string; provider: string; confirmation: string; originCode?: string; destinationCode?: string; location?: string; scheduledStart: string; scheduledEnd: string; cost: number; lat?: number; lng?: number }) {
     await wait(350);
     const state = stateFor(tripId);
     const start = new Date(req.scheduledStart);
@@ -561,6 +568,7 @@ export const demoBackend = {
       confirmation: req.confirmation, cost: req.cost, cancellationPolicy: 'Per provider terms', refundable: true, refundAmount: Math.round(req.cost * 0.5),
       icon: req.category === 'flight' ? 'plane' : req.category === 'hotel' ? 'bed' : req.category === 'transfer' ? 'car' : 'mountain',
       start, end, dayOffset: Math.max(0, Math.round((start.getTime() - tripStart.getTime()) / DAY)), tripStart: 0,
+      lat: req.lat, lng: req.lng,
     });
     state.trip.nodes.push(n);
     state.trip.nodes.sort((a, b) => (a.scheduledStart ?? '').localeCompare(b.scheduledStart ?? ''));
@@ -581,6 +589,89 @@ export const demoBackend = {
   async exportTrip(tripId: string) {
     const trip = clone(stateFor(tripId).trip);
     return { exportedAt: new Date().toISOString(), version: '1.0', trip, bookings: await demoBackend.getBookings(tripId) };
+  },
+
+  async getRecoveryNarrative(tripId: string) {
+    await wait(200);
+    const { disruption, options } = stateFor(tripId);
+    const ranked = [...options].filter((o) => o.feasible !== false).sort((a, b) => b.score - a.score);
+    if (!disruption || !ranked.length) {
+      return { executiveSummary: 'No active disruption — every booking is on track.', narrative: null, topOptionId: null, optionNotes: {}, source: 'deterministic' as const };
+    }
+    const top = ranked[0];
+    const cost = (v: number) => (v > 0 ? `+₹${v.toLocaleString('en-IN')}` : 'no extra cost');
+    return {
+      executiveSummary: `${disruption.label}. Recommended: “${top.name}” — ${cost(top.costDelta)}, ${top.bookingsPreserved}/${top.totalBookings} bookings preserved, ${top.residualRisk} residual risk.${ranked.length > 1 ? ` ${ranked.length - 1} alternatives considered.` : ''}`,
+      narrative: ranked.map((o, i) => (i === 0 ? `“${o.name}” ranks first (${o.score}/100).` : `“${o.name}” (${o.score}/100) ${o.costDelta < top.costDelta ? `saves ₹${(top.costDelta - o.costDelta).toLocaleString('en-IN')}` : `costs ₹${(o.costDelta - top.costDelta).toLocaleString('en-IN')} more`}.`)).join(' '),
+      topOptionId: top.id,
+      optionNotes: {},
+      source: 'deterministic' as const,
+    };
+  },
+
+  async getTripWeather(tripId: string) {
+    await wait(150);
+    return tripWeather(tripId, clone(stateFor(tripId).trip.nodes));
+  },
+
+  async getSocialSignals(tripId: string) {
+    await wait(120);
+    return liveSignals(tripId, stateFor(tripId).trip.nodes, Math.floor(Date.now() / 20_000));
+  },
+
+  async simulateDigitalTwin(tripId: string, req: WeatherScenarioRequest): Promise<DigitalTwinSimulation> {
+    await wait(700);
+    const state = stateFor(tripId);
+    let result;
+    try {
+      result = simulateTwin(tripId, clone(state.trip.nodes), state.edges, state.trip.healthScore, req);
+    } catch (err) {
+      throw new DemoConflictError(err instanceof Error ? err.message : 'Simulation failed');
+    }
+    const simulationId = `demo-sim-${Date.now().toString(36)}`;
+    const sim = { ...result, simulationId, expiresAt: new Date(Date.now() + 30 * 60_000).toISOString() };
+    twinSims.set(simulationId, { sim, fingerprint: fingerprint(state) });
+    return clone(sim);
+  },
+
+  async applyDigitalTwin(tripId: string, simulationId: string, optionId: string): Promise<DigitalTwinApplyResult> {
+    await wait(900);
+    const state = stateFor(tripId);
+    const stored = twinSims.get(simulationId);
+    const option = stored?.sim.tripId === tripId ? stored.sim.options.find((o) => o.id === optionId) : undefined;
+    if (!stored || !option) throw new DemoNotFoundError('Simulation not found or expired. Run the scenario again.');
+    if (stored.fingerprint !== fingerprint(state)) throw new DemoConflictError('The itinerary changed since this simulation. Run the scenario again.');
+    if (state.disruption) throw new DemoConflictError('Resolve the active disruption before applying a preemptive weather plan.');
+    for (const c of option.changes) {
+      const n = state.trip.nodes.find((x) => x.id === c.nodeId);
+      if (!n) continue;
+      const start = new Date(c.newStart);
+      const end = new Date(c.newEnd);
+      n.scheduledStart = iso(start);
+      n.scheduledEnd = iso(end);
+      n.scheduledTime = start.toDateString() === end.toDateString() ? `${dayLabel(start)} · ${hm(start)}–${hm(end)}` : `${dayLabel(start)} · ${hm(start)} — ${dayLabel(end)} · ${hm(end)}`;
+      n.cost += c.costDelta;
+      n.status = 'recovered';
+      n.reason = `${c.description} Applied preemptively by the weather Digital Twin.`;
+      n.causedBy = null;
+      n.actualStart = null;
+      n.actualEnd = null;
+    }
+    state.trip.nodes.sort((a, b) => (a.scheduledStart ?? '').localeCompare(b.scheduledStart ?? ''));
+    state.trip.tripValue += option.deltaCost;
+    state.trip.healthScore = option.healthScore;
+    state.trip.status = 'operational';
+    state.trip.edges.forEach((e) => { e.status = 'healthy'; });
+    state.activity.unshift(event('recovery', `Preemptive plan applied: ${option.name}`, `${stored.sim.scenarioName} · ${option.commitmentsPreserved}/${option.totalCommitments} commitments protected`));
+    state.notifications.unshift(notify('system', 'recovery', 'Storm-proofed itinerary', `${option.name} applied ahead of “${stored.sim.scenarioName}”.`));
+    twinSims.delete(simulationId);
+    const committed = state.trip.nodes.filter((n) => n.category !== 'connection');
+    return {
+      trip: clone(state.trip),
+      appliedOption: clone(option),
+      validation: { healthScore: option.healthScore, atRiskCommitments: option.residualFailures, totalCommitments: committed.length, costExposure: 0 },
+      allConnectionsValid: option.residualFailures === 0,
+    };
   },
 
   async askAssistant(tripId: string, message: string) {

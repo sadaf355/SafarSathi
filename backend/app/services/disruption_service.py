@@ -16,6 +16,7 @@ from app.repositories.disruption_repository import DisruptionRepository
 from app.repositories.node_repository import NodeRepository
 from app.schemas.disruption import CascadeStepOut, DisruptionOut, DisruptionRequest, ImpactEntryOut, PropagationResultOut
 from app.services.converters import format_time, to_engine_edge, to_engine_node
+from app.services import email_service
 from app.services.trip_service import get_trip
 
 _propagation_engine = PropagationEngine()
@@ -235,6 +236,11 @@ def trigger_disruption(
     )
 
     db.commit()
+
+    if impact_level in (ImpactLevel.HIGH, ImpactLevel.CRITICAL) and trip.traveler is not None:
+        email_service.notify_disruption(
+            trip.traveler.email, trip.traveler.name, trip.name, disruption.label, downstream_impact, financial.at_risk_value
+        )
 
     cascade_steps_out = [
         CascadeStepOut(id=s.id, description=s.description, node_id=s.node_id, timestamp=s.timestamp)

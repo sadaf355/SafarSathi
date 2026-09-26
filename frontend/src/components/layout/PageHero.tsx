@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { ScriptTagline } from '@/components/brand/Logo';
+import { ActiveTripBadge, Breadcrumbs, type Crumb } from '@/components/layout/PageContext';
 import { Plane } from 'lucide-react';
 
 interface PageHeroProps {
@@ -14,12 +15,16 @@ interface PageHeroProps {
   /** Illustration shown on the right on wide screens (instead of a photo). */
   art?: ReactNode;
   actions?: ReactNode;
+  /** Breadcrumb trail after "Dashboard"; the last crumb is the current page. */
+  crumbs?: Crumb[];
+  /** Show which trip the page is about (with its status). */
+  showTripBadge?: boolean;
   className?: string;
 }
 
 /** Page header shared by every screen: large title, supporting copy, and an
  * optional landmark photograph that sits behind the top bar on the right. */
-export function PageHero({ title, titleAddon, subtitle, description, image, script, art, actions, className }: PageHeroProps) {
+export function PageHero({ title, titleAddon, subtitle, description, image, script, art, actions, crumbs, showTripBadge, className }: PageHeroProps) {
   return (
     <>
       {art && (
@@ -44,6 +49,12 @@ export function PageHero({ title, titleAddon, subtitle, description, image, scri
       )}
       <div className={cn('relative z-10 flex flex-wrap items-start justify-between gap-4 pb-6 pt-4', !!art && 'min-[1400px]:min-h-[250px]', className)}>
         <div className={cn('min-w-0 max-w-2xl', !!art && 'min-[1400px]:max-w-[560px]')}>
+          {(crumbs || showTripBadge) && (
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+              {crumbs && <Breadcrumbs crumbs={crumbs} />}
+              {showTripBadge && <ActiveTripBadge />}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-display text-[30px] font-extrabold leading-tight tracking-tight text-ink sm:text-[38px]">{title}</h1>
             {titleAddon}

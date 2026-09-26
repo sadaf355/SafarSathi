@@ -49,7 +49,7 @@ export function RecoveryPlanCard({ option, route, rank, selected, isFastest, isC
     <article
       className={cn(
         'card relative flex flex-col p-5 transition duration-200 animate-fade-in-up',
-        selected ? 'border-brand shadow-[0_0_0_3px_rgba(31,107,255,.15),0_18px_40px_-16px_rgba(31,107,255,.35)]' : 'hover:border-brand/30 hover:shadow-lift'
+        selected ? 'border-brand shadow-lift ring-4 ring-brand/15' : 'hover:border-brand/30 hover:shadow-lift'
       )}
       style={{ animationDelay: `${rank * 80}ms` }}
     >
@@ -109,6 +109,7 @@ export function RecoveryPlanCard({ option, route, rank, selected, isFastest, isC
           <span className="flex items-center gap-2 text-sm font-bold text-ink"><Lightbulb className="h-4 w-4 text-risk" />Why this plan?</span>
           <ChevronDown className={cn('h-4 w-4 text-ink-muted transition', whyOpen && 'rotate-180')} />
         </button>
+        {whyOpen && option.narrative && <p className="px-4 pb-2 text-sm leading-relaxed text-ink-soft">{option.narrative}</p>}
         {whyOpen && (
           <ul className="space-y-2 px-4 pb-4">
             {whyBullets(option).map((b) => (

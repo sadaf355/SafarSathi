@@ -53,7 +53,9 @@ beforeEach(() => {
     disruptionVsComfort: 50,
     recoveryPriorities: { minimizeCost: false, minimizeTime: false, minimizeDisruption: true, maximizeComfort: false },
   });
-  vi.mocked(api.listTrips).mockResolvedValue([]);
+  vi.mocked(api.listTrips).mockResolvedValue([
+    { id: 'trip-1', name: 'My Trip', route: 'A to B', startDate: '2026-01-01', endDate: '2026-01-05', tripValue: 0, healthScore: 100, status: 'operational', nodeCount: 0, edgeCount: 0 } as api.TripSummary,
+  ]);
 });
 
 async function renderModal(onAdded = vi.fn()) {
@@ -169,10 +171,7 @@ describe('AddFlightModal', () => {
     await user.click(screen.getByRole('button', { name: /^add flight$/i }));
 
     await waitFor(() => expect(onAdded).toHaveBeenCalledTimes(1));
-    // AppProvider's initial tripId is the hardcoded default - nothing in
-    // this test switches trips, so that's what addFlightNode is called
-    // against, regardless of what id the mocked getItinerary() response uses.
-    expect(api.addFlightNode).toHaveBeenCalledWith('trip-ladakh-2025', {
+    expect(api.addFlightNode).toHaveBeenCalledWith('trip-1', {
       category: 'flight',
       title: 'Delhi to Mumbai',
       provider: 'IndiGo',

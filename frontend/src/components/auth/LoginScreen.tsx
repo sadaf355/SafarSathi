@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowLeft, Loader2, Sparkles, WifiOff } from 'lucide-react';
-import { useAuth } from '@/store/AuthContext';
+import { DEMO_UNAVAILABLE_MESSAGE, useAuth } from '@/store/AuthContext';
+import { useToast } from '@/components/ui/ToastProvider';
+import { ApiError } from '@/services/api';
 import { Logo, ScriptTagline } from '@/components/brand/Logo';
 import { ItineraryBoard } from '@/components/brand/ItineraryArt';
 import { cn } from '@/lib/utils';
@@ -14,6 +16,14 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const { addToast } = useToast();
+  const demoUnavailable = error === DEMO_UNAVAILABLE_MESSAGE;
+
+  const handleDemo = () => {
+    continueAsDemo().catch((err) => {
+      if (err instanceof ApiError && err.status === 404) addToast('info', 'Production mode active', 'Please create a new account or use Explore Offline Demo.');
+    });
+  };
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -83,10 +93,10 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
           <div className="my-5 flex items-center gap-3 text-xs text-ink-faint"><div className="h-px flex-1 bg-line" />OR<div className="h-px flex-1 bg-line" /></div>
 
           <div className="space-y-2">
-            <button type="button" disabled={busy} onClick={() => continueAsDemo().catch(() => {})} className="btn-outline w-full py-3">
+            <button type="button" disabled={busy} onClick={handleDemo} className="btn-outline w-full py-3">
               <Sparkles className="h-4 w-4" /> Continue as Demo Traveler
             </button>
-            <button type="button" disabled={busy} onClick={() => continueOffline()} className={cn('btn w-full py-3', offline ? 'bg-ai text-white hover:brightness-110' : 'border border-line bg-white text-ink-soft hover:bg-canvas')}>
+            <button type="button" disabled={busy} onClick={() => continueOffline()} className={cn('btn w-full py-3', offline || demoUnavailable ? 'bg-ai text-white hover:brightness-110' : 'border border-line bg-white text-ink-soft hover:bg-canvas')}>
               <WifiOff className="h-4 w-4" /> Explore offline demo
             </button>
             <p className="pt-1 text-center text-[11px] leading-relaxed text-ink-muted">The offline demo runs entirely in your browser with sample trips — no account or backend needed.</p>

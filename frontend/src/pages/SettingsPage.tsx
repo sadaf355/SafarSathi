@@ -36,7 +36,7 @@ export function SettingsPage() {
 
   return (
     <div className="animate-fade-in">
-      <PageHero title="Settings" subtitle="Control how Safar Sathi ranks recovery plans and alerts you." />
+      <PageHero crumbs={[{ label: 'Settings' }]} title="Settings" subtitle="Control how Safar Sathi ranks recovery plans and alerts you." />
       <div className="relative z-10 grid grid-cols-1 gap-5 lg:grid-cols-2">
 
       <SettingsSection icon={<Plane className="h-4 w-4 text-brand" />} title="Traveler Preferences">

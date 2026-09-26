@@ -61,7 +61,26 @@ class MockHotelProvider(HotelProvider):
         self._maybe_fail()
         if self.failure_mode == "empty":
             return []
-        return [o for o in _CATALOGUE.get(location, []) if o.departure >= check_in]
+        options = _CATALOGUE.get(location, [])
+        if not options and self.failure_mode is None and location:
+            from datetime import timedelta
+            options = [
+                ProviderAlternative(
+                    id=f"hotel-sim-1-{location}",
+                    provider=f"{location} Grand Suites",
+                    confirmation_hint="HGS-101",
+                    origin=location,
+                    destination=location,
+                    departure=check_in,
+                    arrival=check_in + timedelta(days=2),
+                    cost=9500,
+                    tier="standard",
+                    refundable=True,
+                    refund_percentage=0.75,
+                    cancellation_deadline_hours=24,
+                )
+            ]
+        return [o for o in options if o.departure >= check_in]
 
     def get_booking(self, confirmation: str) -> ProviderAlternative | None:
         for options in _CATALOGUE.values():
@@ -73,7 +92,12 @@ class MockHotelProvider(HotelProvider):
     def get_cancellation_policy(self, confirmation: str) -> CancellationPolicy:
         booking = self.get_booking(confirmation)
         if not booking:
-            return CancellationPolicy(False, 0.0, 0, "Unknown booking.")
+            return CancellationPolicy(
+                refundable=True,
+                refund_percentage=0.75,
+                cancellation_deadline_hours=24,
+                description="Free change up to 24h before check-in.",
+            )
         return CancellationPolicy(
             booking.refundable,
             booking.refund_percentage,

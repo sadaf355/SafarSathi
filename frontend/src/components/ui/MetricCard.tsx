@@ -18,7 +18,7 @@ interface MetricCardProps {
 
 const iconTiles = {
   default: 'bg-canvas text-ink-muted',
-  green: 'bg-gradient-to-br from-[#22C55E] to-[#16A34A] text-white shadow-[0_8px_18px_-8px_rgba(22,163,74,.7)] text-safar-safe',
+  green: 'bg-gradient-to-br from-[#22C55E] to-[#16A34A] text-white shadow-card text-safar-safe',
   amber: 'bg-gradient-to-br from-[#FFE7C2] to-[#FFD699] text-risk-dark',
   red: 'bg-gradient-to-br from-[#FFE1E1] to-[#FFCACA] text-danger',
   cyan: 'bg-gradient-to-br from-[#E6EEFF] to-[#D3E1FF] text-brand',

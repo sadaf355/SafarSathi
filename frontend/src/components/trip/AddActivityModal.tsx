@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useApp } from '@/store/AppContext';
 import { ApiError } from '@/services/api';
+import { coordinatesFor } from '@/lib/geocoding';
 import { Compass, Loader2 } from 'lucide-react';
 
 interface AddActivityModalProps {
@@ -97,6 +98,8 @@ export function AddActivityModal({ open, onClose, onAdded }: AddActivityModalPro
 
     setSubmitting(true);
     try {
+      // Resolve coordinates so the stay/activity gets a pin on the map; never blocks saving.
+      const coords = await coordinatesFor(location.trim());
       await addNode({
         category: 'activity',
         title: title.trim(),
@@ -106,6 +109,7 @@ export function AddActivityModal({ open, onClose, onAdded }: AddActivityModalPro
         scheduledStart,
         scheduledEnd,
         cost: Number(cost),
+        ...coords,
       });
       resetForm();
       onAdded();

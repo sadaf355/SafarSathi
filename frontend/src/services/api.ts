@@ -11,7 +11,7 @@ import type {
   TravelerPreferences,
 } from '@/types';
 import { getStoredToken } from '@/lib/authStorage';
-import { demoBackend, DemoNotFoundError } from '@/services/demoBackend';
+import { demoBackend, DemoConflictError, DemoNotFoundError } from '@/services/demoBackend';
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://127.0.0.1:8008';
 
@@ -35,6 +35,7 @@ async function viaDemo<T>(call: () => Promise<T>): Promise<T> {
     return await call();
   } catch (err) {
     if (err instanceof DemoNotFoundError) throw new ApiError(err.message, 404);
+    if (err instanceof DemoConflictError) throw new ApiError(err.message, 409);
     throw err;
   }
 }
@@ -237,6 +238,9 @@ export interface HotelCreateRequest {
   scheduledStart: string;
   scheduledEnd: string;
   cost: number;
+  /** Optional coordinates for the itinerary map (see lib/geocoding.ts). */
+  lat?: number;
+  lng?: number;
 }
 
 export interface ActivityCreateRequest {
@@ -248,6 +252,9 @@ export interface ActivityCreateRequest {
   scheduledStart: string;
   scheduledEnd: string;
   cost: number;
+  /** Optional coordinates for the itinerary map (see lib/geocoding.ts). */
+  lat?: number;
+  lng?: number;
 }
 
 export interface TransferCreateRequest {
@@ -261,6 +268,9 @@ export interface TransferCreateRequest {
   scheduledStart: string;
   scheduledEnd: string;
   cost: number;
+  /** Optional coordinates for the itinerary map (see lib/geocoding.ts). */
+  lat?: number;
+  lng?: number;
 }
 
 export type NodeCreateRequest =
@@ -370,9 +380,242 @@ export async function resetTrip(tripId: string): Promise<Trip> {
   return post<Trip>(`/api/trips/${tripId}/reset`);
 }
 
+export interface RecoveryNarrative {
+  executiveSummary: string | null;
+  narrative: string | null;
+  topOptionId: string | null;
+  optionNotes: Record<string, string>;
+  source: 'llm' | 'deterministic';
+}
+
+export interface DisruptionExtraction {
+  type: string | null;
+  delayMinutes: number | null;
+  flightNumber: string | null;
+  gate: string | null;
+  primaryNodeId: string | null;
+  primaryNodeLabel: string | null;
+  confidence: number;
+  matchedSignals: string[];
+  summary: string;
+  source: 'heuristic' | 'llm';
+}
+
+export async function getRecoveryNarrative(tripId: string): Promise<RecoveryNarrative> {
+  if (isDemo()) return viaDemo(() => demoBackend.getRecoveryNarrative(tripId));
+  return post<RecoveryNarrative>('/api/assistant/recovery-narrative', { tripId });
+}
+
+/** Parse an airline SMS / email into a disruption. Live backend only; the
+ * offline demo rejects so callers fall back to their local parser. */
+export async function extractDisruption(text: string, tripId?: string): Promise<DisruptionExtraction> {
+  if (isDemo()) throw new ApiError('Disruption extraction needs the live backend.', 501);
+  return post<DisruptionExtraction>('/api/assistant/extract-disruption', { text, tripId });
+}
+
 export async function askAssistant(tripId: string, message: string): Promise<AssistantAnswer> {
   if (isDemo()) return viaDemo(() => demoBackend.askAssistant(tripId, message));
   return post<AssistantAnswer>('/api/assistant', { tripId, message });
+}
+
+// ---- Weather, social signals & the weather Digital Twin ----------------------------
+
+export interface HourlyWeather {
+  time: string;
+  temperatureC: number;
+  precipitationProbability: number;
+  rainfallMm: number;
+  windSpeedKmh: number;
+  cloudCover: number;
+  visibilityM: number;
+  weatherCode: number;
+  label: string;
+  riskPercent: number;
+}
+
+export interface WeatherForecast {
+  lat: number;
+  lng: number;
+  source: 'open-meteo' | 'fallback';
+  current: HourlyWeather;
+  hourly: HourlyWeather[];
+}
+
+export interface NodeWeather {
+  nodeId: string;
+  title: string;
+  category: string;
+  location: string;
+  lat: number | null;
+  lng: number | null;
+  scheduledStart: string;
+  conditions: HourlyWeather | null;
+  /** Weather Vulnerability Index (0-100): how exposed this kind of booking is. */
+  vulnerabilityIndex: number;
+  /** WVI x forecast risk (0-100). */
+  exposure: number;
+  source: 'open-meteo' | 'fallback' | 'unavailable';
+}
+
+export interface TripWeather {
+  tripId: string;
+  nodes: NodeWeather[];
+  maxExposure: number;
+  mostExposedNodeId: string | null;
+  summary: string;
+}
+
+export type SocialSignalType = 'airport_congestion' | 'road_waterlogging' | 'transit_strike' | 'weather_warning' | 'crowd_surge' | 'all_clear';
+
+export interface SocialSignal {
+  id: string;
+  type: SocialSignalType;
+  location: string;
+  lat: number | null;
+  lng: number | null;
+  nodeIds: string[];
+  urgency: 'low' | 'medium' | 'high' | 'critical';
+  sentiment: number;
+  intensity: number;
+  text: string;
+  minutesAgo: number;
+  source: 'simulated';
+}
+
+export interface SocialSignals {
+  tripId: string;
+  signals: SocialSignal[];
+  overallSentiment: number;
+  summary: string;
+}
+
+export interface WeatherScenarioRequest {
+  scenarioName: string;
+  rainfallMmPerHour: number;
+  windSpeedKmh: number;
+  visibilityMeters: number;
+  temperatureCelsius: number;
+  stormDurationHours: number;
+  affectedNodeId?: string | null;
+  stormStart?: string | null;
+}
+
+export interface TwinStateSummary {
+  healthScore: number;
+  atRiskCommitments: number;
+  totalCommitments: number;
+  costExposure: number;
+}
+
+export interface TwinNode {
+  nodeId: string;
+  title: string;
+  category: string;
+  mode: string;
+  liveStatus: string;
+  twinStatus: string;
+  reason: string | null;
+  directHit: boolean;
+  driver: string | null;
+  delayMinutes: number;
+  lat: number | null;
+  lng: number | null;
+}
+
+export interface TwinRisk {
+  nodeId: string;
+  label: string;
+  probability: number;
+  low: number;
+  high: number;
+}
+
+export interface CascadeLink {
+  /** "weather" for a direct weather hit. */
+  fromNodeId: string;
+  toNodeId: string;
+  status: string;
+}
+
+export interface TwinChange {
+  nodeId: string;
+  title: string;
+  changeType: string;
+  newStart: string;
+  newEnd: string;
+  costDelta: number;
+  description: string;
+}
+
+export interface TwinOption {
+  id: string;
+  name: string;
+  strategy: string;
+  description: string;
+  changes: TwinChange[];
+  deltaCost: number;
+  timeImpactMinutes: number;
+  commitmentsPreserved: number;
+  totalCommitments: number;
+  healthScore: number;
+  residualFailures: number;
+  score: number;
+  recommended: boolean;
+  notes: string[];
+}
+
+export interface DigitalTwinSimulation {
+  simulationId: string;
+  tripId: string;
+  scenarioName: string;
+  severity: number;
+  stormWindowStart: string;
+  stormWindowEnd: string;
+  live: TwinStateSummary;
+  twin: TwinStateSummary;
+  healthDelta: number;
+  nodes: TwinNode[];
+  risks: TwinRisk[];
+  cascade: CascadeLink[];
+  options: TwinOption[];
+  socialSignals: SocialSignals;
+  explanation: string;
+  explanationSource: 'nugen' | 'heuristic';
+  model: string | null;
+  mitigation: string[];
+  mitigationSource: 'nugen' | 'heuristic';
+  expiresAt: string;
+}
+
+export interface DigitalTwinApplyResult {
+  trip: Trip;
+  appliedOption: TwinOption;
+  validation: TwinStateSummary;
+  allConnectionsValid: boolean;
+}
+
+export async function getWeather(lat: number, lng: number, hours = 24): Promise<WeatherForecast> {
+  return get<WeatherForecast>(`/api/weather?lat=${lat}&lng=${lng}&hours=${hours}`);
+}
+
+export async function getTripWeather(tripId: string): Promise<TripWeather> {
+  if (isDemo()) return viaDemo(() => demoBackend.getTripWeather(tripId));
+  return get<TripWeather>(`/api/trips/${tripId}/weather`);
+}
+
+export async function getSocialSignals(tripId: string): Promise<SocialSignals> {
+  if (isDemo()) return viaDemo(() => demoBackend.getSocialSignals(tripId));
+  return get<SocialSignals>(`/api/trips/${tripId}/social-signals`);
+}
+
+export async function simulateDigitalTwin(tripId: string, req: WeatherScenarioRequest): Promise<DigitalTwinSimulation> {
+  if (isDemo()) return viaDemo(() => demoBackend.simulateDigitalTwin(tripId, req));
+  return post<DigitalTwinSimulation>(`/api/trips/${tripId}/digital-twin/simulate`, req);
+}
+
+export async function applyDigitalTwin(tripId: string, simulationId: string, optionId: string): Promise<DigitalTwinApplyResult> {
+  if (isDemo()) return viaDemo(() => demoBackend.applyDigitalTwin(tripId, simulationId, optionId));
+  return post<DigitalTwinApplyResult>(`/api/trips/${tripId}/digital-twin/apply`, { simulationId, optionId });
 }
 
 export async function checkHealth(): Promise<boolean> {

@@ -80,6 +80,7 @@ class RecoveryPlanResult:
     score: int = 0
     score_breakdown: dict[str, int] = field(default_factory=dict)
     provider_reason: str | None = None
+    data_source: str = "simulated"
 
 
 def _find_upstream_incoming(edges: list[EngineEdge], node_id: str) -> list[EngineEdge]:
@@ -384,6 +385,7 @@ class RecoveryEngine:
             feasible=feasible,
             actions=actions,
             provider_reason=provider_reason,
+            data_source=getattr(alt, "source", "simulated"),
         )
 
     def _resolve_activity_conflicts(

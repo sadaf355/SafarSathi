@@ -45,13 +45,13 @@ function Toast({ toast, onDismiss }: { toast: ToastData; onDismiss: (id: string)
   };
 
   return (
-    <div className={cn('glass-strong flex items-start gap-3 rounded-xl border p-4 shadow-2xl animate-slide-in-right w-full sm:min-w-[300px] sm:w-auto sm:max-w-md', borders[toast.type])}>
+    <div className={cn('border border-line bg-white shadow-lift flex items-start gap-3 rounded-xl border p-4 shadow-lift animate-slide-in-right w-full sm:min-w-[300px] sm:w-auto sm:max-w-md', borders[toast.type])}>
       <div className="mt-0.5 shrink-0">{icons[toast.type]}</div>
       <div className="flex-1">
-        <p className="text-sm font-medium text-slate-900">{toast.title}</p>
-        {toast.message && <p className="mt-0.5 text-xs text-slate-600">{toast.message}</p>}
+        <p className="text-sm font-medium text-ink">{toast.title}</p>
+        {toast.message && <p className="mt-0.5 text-xs text-ink-muted">{toast.message}</p>}
       </div>
-      <button onClick={() => onDismiss(toast.id)} className="text-slate-600 transition hover:text-slate-900" aria-label="Dismiss">
+      <button onClick={() => onDismiss(toast.id)} className="text-ink-muted transition hover:text-ink" aria-label="Dismiss">
         <X className="h-4 w-4" />
       </button>
     </div>

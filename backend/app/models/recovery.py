@@ -33,6 +33,7 @@ class RecoveryPlan(Base):
     provider_reason: Mapped[str | None] = mapped_column(String, nullable=True)
 
     feasible: Mapped[bool] = mapped_column(Boolean, default=True)
+    data_source: Mapped[str] = mapped_column(String, default="simulated")
     applied: Mapped[bool] = mapped_column(Boolean, default=False)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

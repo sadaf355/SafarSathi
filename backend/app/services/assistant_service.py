@@ -17,9 +17,12 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.repositories.disruption_repository import DisruptionRepository
 from app.repositories.recovery_repository import RecoveryRepository
-from app.schemas.assistant import AssistantReference, AssistantResponse
+from app.models.enums import DisruptionType
+from app.schemas.assistant import AssistantReference, AssistantResponse, DisruptionExtractResponse
+from app.schemas.recovery import RecoveryNarrativeOut
+from app.services import disruption_extraction, recovery_narrative
 from app.services.risk_service import get_risk_analysis
-from app.services.trip_service import get_trip_out
+from app.services.trip_service import get_trip, get_trip_out
 
 logger = logging.getLogger("triprescue.assistant")
 
@@ -255,3 +258,141 @@ def answer_question(db: Session, trip_id: str, message: str, traveler_id: str | 
 
     text, refs = _deterministic_answer(context, message)
     return AssistantResponse(content=text, references=refs, source="deterministic")
+
+
+# ---- Recovery narrative -------------------------------------------------------
+
+
+def generate_recovery_narrative(trip, disruption, recovery_options, preferences: dict | None) -> str:
+    """Explain why the recovery options are ranked as they are, in terms of the
+    traveler's preferences. Uses Claude when ANTHROPIC_API_KEY is configured and
+    otherwise (or on any LLM failure) a deterministic comparison of cost deltas,
+    arrival impact, preserved bookings and residual risk - it never raises."""
+    label = getattr(disruption, "label", None)
+    options = list(recovery_options or [])
+    fallback = recovery_narrative.narrative(label, options, preferences)
+    settings = get_settings()
+    if not settings.anthropic_api_key or not recovery_narrative.rank(options):
+        return fallback
+    try:
+        import anthropic
+
+        grounded = {
+            "trip": getattr(trip, "name", ""),
+            "disruption": label,
+            "traveler_priorities": recovery_narrative.describe_preferences(preferences),
+            "options_ranked": [vars(o) for o in recovery_narrative.rank(options)],
+            "deterministic_explanation": fallback,
+        }
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        response = client.messages.create(
+            model=settings.anthropic_model,
+            max_tokens=350,
+            system=(
+                "You explain travel recovery rankings. Use ONLY the JSON provided. In 3-5 sentences, say why the "
+                "top option fits the traveler's priorities and what each alternative trades off. Never invent prices, "
+                "times or bookings."
+            ),
+            messages=[{"role": "user", "content": f"{grounded}"}],
+        )
+        text = response.content[0].text.strip() if response.content else ""
+        return text or fallback
+    except Exception:
+        logger.warning("LLM narrative failed; using deterministic narrative.", exc_info=True)
+        return fallback
+
+
+def get_recovery_narrative(db: Session, trip_id: str, traveler_id: str | None = None) -> RecoveryNarrativeOut:
+    context = _gather_context(db, trip_id, traveler_id)
+    disruption = context["disruption"]
+    active = disruption is not None and not disruption.resolved
+    options = [o for o in context["recovery_options"] if not o.applied] if active else []
+    preferences = get_trip(db, trip_id, traveler_id).traveler.preferences if active else None
+    ranked = recovery_narrative.rank(options)
+    if not active:
+        return RecoveryNarrativeOut(
+            executive_summary="No active disruption — every booking is on track.",
+            narrative=None,
+            source="deterministic",
+        )
+    text = generate_recovery_narrative(context["trip"], disruption, options, preferences)
+    deterministic = text == recovery_narrative.narrative(disruption.label, options, preferences)
+    return RecoveryNarrativeOut(
+        executive_summary=recovery_narrative.executive_summary(disruption.label, options),
+        narrative=text,
+        top_option_id=ranked[0].id if ranked else None,
+        option_notes=recovery_narrative.option_notes(options, preferences),
+        source="deterministic" if deterministic else "llm",
+    )
+
+
+# ---- Free-text disruption extraction ---------------------------------------------
+
+
+def _llm_extract(text: str) -> dict | None:
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        return None
+    try:
+        import json
+
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        response = client.messages.create(
+            model=settings.anthropic_model,
+            max_tokens=200,
+            system=(
+                "Extract a travel disruption from the message. Reply with JSON only: "
+                '{"type": one of ' + json.dumps([t.value for t in DisruptionType]) + " or null, "
+                '"delayMinutes": integer or null, "flightNumber": string or null}. Do not guess values absent from the text.'
+            ),
+            messages=[{"role": "user", "content": text}],
+        )
+        raw = response.content[0].text if response.content else ""
+        start, end = raw.find("{"), raw.rfind("}")
+        data = json.loads(raw[start : end + 1]) if start != -1 and end > start else None
+        if not isinstance(data, dict):
+            return None
+        if data.get("type") not in {t.value for t in DisruptionType} | {None}:
+            data["type"] = None
+        return data
+    except Exception:
+        logger.warning("LLM disruption extraction failed; keeping heuristic result.", exc_info=True)
+        return None
+
+
+def extract_disruption(db: Session, text: str, trip_id: str | None = None, traveler_id: str | None = None) -> DisruptionExtractResponse:
+    result = disruption_extraction.extract(text)
+    source = "heuristic"
+    if result.confidence < 0.5:
+        llm = _llm_extract(text)
+        if llm:
+            result.type = llm.get("type") or result.type
+            if isinstance(llm.get("delayMinutes"), int) and llm["delayMinutes"] > 0:
+                result.delay_minutes = llm["delayMinutes"]
+            result.flight_number = llm.get("flightNumber") or result.flight_number
+            result.confidence = max(result.confidence, 0.7 if result.type else result.confidence)
+            result.signals.append("language model")
+            source = "llm"
+
+    node_id = node_title = None
+    if trip_id:
+        trip = get_trip(db, trip_id, traveler_id)  # raises TripNotFoundError for foreign trips
+        node_id, node_title, how = disruption_extraction.match_node(result, list(trip.nodes))
+        if node_id:
+            result.signals.append(f"matched booking by {how}")
+            result.confidence = round(min(0.99, result.confidence + 0.05), 2)
+
+    return DisruptionExtractResponse(
+        type=result.type,
+        delay_minutes=result.delay_minutes,
+        flight_number=result.flight_number,
+        gate=result.gate,
+        primary_node_id=node_id,
+        primary_node_label=node_title,
+        confidence=result.confidence,
+        matched_signals=result.signals,
+        summary=disruption_extraction.summarize(result, node_title),
+        source=source,
+    )

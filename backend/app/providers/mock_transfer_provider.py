@@ -61,7 +61,40 @@ class MockTransferProvider(TransferProvider):
         self._maybe_fail()
         if self.failure_mode == "empty":
             return []
-        return [o for o in _CATALOGUE.get(location, []) if o.departure >= after]
+        options = _CATALOGUE.get(location, [])
+        if not options and self.failure_mode is None and location:
+            from datetime import timedelta
+            options = [
+                ProviderAlternative(
+                    id=f"transfer-sim-1-{location}",
+                    provider="Express Cab Service",
+                    confirmation_hint="ECS-201",
+                    origin=location,
+                    destination="Hotel",
+                    departure=after + timedelta(minutes=30),
+                    arrival=after + timedelta(minutes=75),
+                    cost=1500,
+                    tier="standard",
+                    refundable=True,
+                    refund_percentage=0.5,
+                    cancellation_deadline_hours=2,
+                ),
+                ProviderAlternative(
+                    id=f"transfer-sim-2-{location}",
+                    provider="City Rail Express",
+                    confirmation_hint="CRE-808",
+                    origin=location,
+                    destination="Hotel",
+                    departure=after + timedelta(minutes=60),
+                    arrival=after + timedelta(minutes=105),
+                    cost=850,
+                    tier="budget",
+                    refundable=False,
+                    refund_percentage=0.0,
+                    cancellation_deadline_hours=1,
+                ),
+            ]
+        return [o for o in options if o.departure >= after]
 
     def get_booking(self, confirmation: str) -> ProviderAlternative | None:
         for options in _CATALOGUE.values():
@@ -73,7 +106,12 @@ class MockTransferProvider(TransferProvider):
     def get_cancellation_policy(self, confirmation: str) -> CancellationPolicy:
         booking = self.get_booking(confirmation)
         if not booking:
-            return CancellationPolicy(False, 0.0, 0, "Unknown booking.")
+            return CancellationPolicy(
+                refundable=True,
+                refund_percentage=0.5,
+                cancellation_deadline_hours=2,
+                description="Free cancellation up to 2h before pickup.",
+            )
         return CancellationPolicy(
             booking.refundable,
             booking.refund_percentage,

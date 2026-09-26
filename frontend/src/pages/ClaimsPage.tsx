@@ -59,7 +59,7 @@ export function ClaimsPage() {
 
   return (
     <div className="animate-fade-in">
-      <PageHero title="Claims & Refunds" subtitle={`What you can recover on ${trip.route || 'this trip'}.`} description="Refund amounts come from each booking's cancellation policy, evaluated by the Safar Sathi refund engine." />
+      <PageHero crumbs={[{ label: 'Claims' }]} showTripBadge title="Claims & Refunds" subtitle={`What you can recover on ${trip.route || 'this trip'}.`} description="Refund amounts come from each booking's cancellation policy, evaluated by the Safar Sathi refund engine." />
       <div className="relative z-10 space-y-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard value={eligibleTotal} prefix="₹ " label="Claimable now" icon={<FileCheck2 />} accent="green" animate={false} sub={`${eligible.length} affected booking${eligible.length === 1 ? '' : 's'}`} />

@@ -131,6 +131,9 @@ export interface RecoveryOption {
   scoreBreakdown: ScoreBreakdown;
   feasible?: boolean;
   providerReason?: string | null;
+  dataSource?: 'live' | 'simulated';
+  /** Why this option ranks where it does for the traveler's preferences. */
+  narrative?: string | null;
 }
 
 export interface RecoveryChange {

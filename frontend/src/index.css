@@ -66,6 +66,14 @@
 .ss-map .leaflet-tooltip-top:before { border-top-color: #fff; }
 .ss-route-flow { animation: dashFlow 1.2s linear infinite; }
 @keyframes dashFlow { to { stroke-dashoffset: -20; } }
+/* ---- Digital Twin weather radar ---- */
+.ss-radar { transform-box: fill-box; transform-origin: center; animation: ssRadar 2.8s ease-out infinite; }
+.ss-radar-2 { animation-delay: .9s; }
+.ss-radar-3 { animation-delay: 1.8s; }
+@keyframes ssRadar { 0% { transform: scale(.25); opacity: .9; } 100% { transform: scale(1); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .ss-radar, .ss-route-flow { animation: none; }
+}
 /* ---- Landing hero ---- */
 .ss-float { animation: ssFloat 6s ease-in-out infinite; }
 .ss-glide { animation: ssGlide 9s ease-in-out infinite; }

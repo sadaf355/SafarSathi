@@ -15,6 +15,7 @@ vi.mock('@/services/api', async () => {
     getNotifications: vi.fn(),
     getPreferences: vi.fn(),
     createTrip: vi.fn(),
+    listTrips: vi.fn(),
   };
 });
 
@@ -44,6 +45,9 @@ const Wrapper = ({ children }: { children: ReactNode }) => <AppProvider>{childre
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(api.listTrips).mockResolvedValue([
+    { id: 'trip-1', name: 'Trip 1', route: 'A → B', startDate: '10 Nov 2026', endDate: '20 Nov 2026', tripValue: 1000, healthScore: 100, status: 'operational', nodeCount: 1, edgeCount: 0 },
+  ]);
   vi.mocked(api.getItinerary).mockResolvedValue(baseTrip());
   vi.mocked(api.getActivityLog).mockResolvedValue([]);
   vi.mocked(api.getNotifications).mockResolvedValue([]);

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useApp } from '@/store/AppContext';
 import { ApiError } from '@/services/api';
+import { coordinatesFor } from '@/lib/geocoding';
 import { Building2, Loader2 } from 'lucide-react';
 
 interface AddAccommodationModalProps {
@@ -97,6 +98,8 @@ export function AddAccommodationModal({ open, onClose, onAdded }: AddAccommodati
 
     setSubmitting(true);
     try {
+      // Resolve coordinates so the stay/activity gets a pin on the map; never blocks saving.
+      const coords = await coordinatesFor(location.trim());
       await addNode({
         category: 'hotel',
         title: title.trim(),
@@ -106,6 +109,7 @@ export function AddAccommodationModal({ open, onClose, onAdded }: AddAccommodati
         scheduledStart,
         scheduledEnd,
         cost: Number(cost),
+        ...coords,
       });
       resetForm();
       onAdded();

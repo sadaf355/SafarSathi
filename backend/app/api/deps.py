@@ -20,15 +20,25 @@ from __future__ import annotations
 
 from fastapi import Header, HTTPException
 
+from app.config import get_settings
 from app.database.seed import DEFAULT_TRAVELER_ID
 from app.services.auth_service import verify_token
 
 
+def _anonymous_traveler_id() -> str:
+    """Identity for a request that carries no bearer token. With
+    REQUIRE_AUTHENTICATION=true (what real deployments should use) there is
+    no anonymous access at all; otherwise local dev keeps the demo fallback."""
+    if get_settings().require_authentication:
+        raise HTTPException(status_code=401, detail="Authentication required", headers={"WWW-Authenticate": "Bearer"})
+    return DEFAULT_TRAVELER_ID
+
+
 def get_current_traveler_id(authorization: str | None = Header(default=None)) -> str:
     if authorization is None:
-        return DEFAULT_TRAVELER_ID
+        return _anonymous_traveler_id()
     if not authorization.lower().startswith("bearer "):
-        return DEFAULT_TRAVELER_ID
+        return _anonymous_traveler_id()
     token = authorization[len("bearer "):].strip()
     traveler_id = verify_token(token)
     if traveler_id is None:

@@ -122,6 +122,55 @@ class MockFlightProvider(FlightProvider):
         if self.failure_mode == "empty":
             return []
         options = _CATALOGUE.get((origin, destination), [])
+        if not options and self.failure_mode is None and origin and destination:
+            from datetime import timedelta
+            dep1 = after + timedelta(hours=2)
+            dep2 = after + timedelta(hours=4, minutes=30)
+            dep3 = after + timedelta(hours=8)
+            options = [
+                ProviderAlternative(
+                    id=f"flight-sim-1-{origin}-{destination}",
+                    provider="AirConnect",
+                    confirmation_hint="AC-102",
+                    origin=origin,
+                    destination=destination,
+                    departure=dep1,
+                    arrival=dep1 + timedelta(hours=1, minutes=30),
+                    cost=8500,
+                    tier="standard",
+                    refundable=True,
+                    refund_percentage=0.6,
+                    cancellation_deadline_hours=6,
+                ),
+                ProviderAlternative(
+                    id=f"flight-sim-2-{origin}-{destination}",
+                    provider="SkyExpress",
+                    confirmation_hint="SE-404",
+                    origin=origin,
+                    destination=destination,
+                    departure=dep2,
+                    arrival=dep2 + timedelta(hours=1, minutes=30),
+                    cost=12500,
+                    tier="premium",
+                    refundable=True,
+                    refund_percentage=0.85,
+                    cancellation_deadline_hours=4,
+                ),
+                ProviderAlternative(
+                    id=f"flight-sim-3-{origin}-{destination}",
+                    provider="DirectFly",
+                    confirmation_hint="DF-901",
+                    origin=origin,
+                    destination=destination,
+                    departure=dep3,
+                    arrival=dep3 + timedelta(hours=1, minutes=30),
+                    cost=6200,
+                    tier="budget",
+                    refundable=False,
+                    refund_percentage=0.0,
+                    cancellation_deadline_hours=24,
+                ),
+            ]
         return sorted(
             [
                 o
@@ -141,7 +190,12 @@ class MockFlightProvider(FlightProvider):
     def get_cancellation_policy(self, confirmation: str) -> CancellationPolicy:
         booking = self.get_booking(confirmation)
         if not booking:
-            return CancellationPolicy(False, 0.0, 0, "Unknown booking.")
+            return CancellationPolicy(
+                refundable=True,
+                refund_percentage=0.5,
+                cancellation_deadline_hours=24,
+                description="Refundable up to 24h before departure.",
+            )
         return CancellationPolicy(
             booking.refundable,
             booking.refund_percentage,

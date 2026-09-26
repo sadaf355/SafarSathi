@@ -46,6 +46,7 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [smartText, setSmartText] = useState('');
   const [understood, setUnderstood] = useState<{ label: string; nodeId?: string } | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const delayMinutes = DELAY_BASED_TYPES.has(selected) ? delayMinutesInput : undefined;
 
@@ -70,7 +71,33 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   }, [open, tripId, selected, delayMinutes]);
 
 
-  const analyzeSmartReport = () => {
+  /** Prefer the backend extractor (airline SMS/email formats, booking matching,
+   * optional LLM); fall back to the local keyword parser offline or on error. */
+  const analyzeSmartReport = async () => {
+    setAnalyzing(true);
+    try {
+      const result = await api.extractDisruption(smartText, tripId);
+      if (result.type && disruptionTypes.some((d) => d.id === result.type)) {
+        setSelected(result.type as DisruptionType['id']);
+        if (DELAY_BASED_TYPES.has(result.type) && result.delayMinutes) {
+          setDelayMinutesInput(Math.max(15, Math.min(360, Math.round(result.delayMinutes / 5) * 5)));
+        }
+        setUnderstood({ label: `${result.summary} (${Math.round(result.confidence * 100)}% confident)`, nodeId: result.primaryNodeId ?? undefined });
+        return;
+      }
+      if (!result.type) {
+        setUnderstood({ label: result.summary });
+        return;
+      }
+    } catch {
+      /* offline demo or backend unavailable - use the local parser below */
+    } finally {
+      setAnalyzing(false);
+    }
+    analyzeLocally();
+  };
+
+  const analyzeLocally = () => {
     const text = smartText.toLowerCase();
     const hoursMatch = text.match(/(\d+(?:\.5)?)\s*(?:hour|hours|hr|hrs|h)/);
     const minutesMatch = text.match(/(\d+)\s*(?:minute|minutes|min|mins|m)/);
@@ -96,15 +123,15 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
       <div className="space-y-4">
         <div className="rounded-xl border border-safar-blue/20 bg-safar-blue/5 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-safar-blue">Smart reporting</div>
-          <div className="mt-1 text-sm font-semibold text-slate-900">What happened?</div>
+          <div className="mt-1 text-sm font-semibold text-ink">What happened?</div>
           <div className="mt-3 flex gap-2">
-            <textarea value={smartText} onChange={(e)=>{setSmartText(e.target.value);setUnderstood(null)}} rows={2} placeholder="e.g. My Mumbai to Delhi flight is delayed by 95 minutes." className="min-h-20 flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-safar-blue focus:outline-none"/>
-            <button onClick={analyzeSmartReport} disabled={!smartText.trim()} className="self-end rounded-xl bg-safar-blue px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Analyze</button>
+            <textarea value={smartText} onChange={(e)=>{setSmartText(e.target.value);setUnderstood(null)}} rows={2} placeholder="e.g. My Mumbai to Delhi flight is delayed by 95 minutes." className="min-h-20 flex-1 resize-none rounded-xl border border-line-strong bg-white px-3 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:border-safar-blue focus:outline-none"/>
+            <button onClick={analyzeSmartReport} disabled={!smartText.trim() || analyzing} className="self-end rounded-xl bg-safar-blue px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">{analyzing ? 'Analyzing…' : 'Analyze'}</button>
           </div>
-          {understood && <div className="mt-3 rounded-lg border border-safar-safe/20 bg-white p-3 text-xs"><div className="font-semibold text-slate-900">I understood</div><div className="mt-1 text-slate-600">{understood.label}</div><div className="mt-2 text-[10px] text-slate-500">Review the details below before confirming.</div></div>}
+          {understood && <div className="mt-3 rounded-lg border border-safar-safe/20 bg-white p-3 text-xs"><div className="font-semibold text-ink">I understood</div><div className="mt-1 text-ink-muted">{understood.label}</div><div className="mt-2 text-[10px] text-ink-muted">Review the details below before confirming.</div></div>}
         </div>
 
-        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Or report manually</div>
+        <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">Or report manually</div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {disruptionTypes.map((dt) => {
             const Icon = iconMap[dt.icon] ?? AlertTriangle;
@@ -115,13 +142,13 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
                 onClick={() => setSelected(dt.id)}
                 className={cn(
                   'flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition-all',
-                  active ? 'border-safar-blue/40 bg-safar-blue/10' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                  active ? 'border-safar-blue/40 bg-safar-blue/10' : 'border-line bg-white hover:border-line-strong hover:bg-canvas'
                 )}
               >
-                <Icon className={cn('h-4 w-4', active ? 'text-safar-blue' : 'text-slate-600')} />
+                <Icon className={cn('h-4 w-4', active ? 'text-safar-blue' : 'text-ink-muted')} />
                 <div>
-                  <div className={cn('text-xs font-medium', active ? 'text-slate-900' : 'text-slate-800')}>{dt.label}</div>
-                  <div className="mt-0.5 text-[10px] text-slate-500 line-clamp-2">{dt.description}</div>
+                  <div className={cn('text-xs font-medium', active ? 'text-ink' : 'text-ink-soft')}>{dt.label}</div>
+                  <div className="mt-0.5 text-[10px] text-ink-muted line-clamp-2">{dt.description}</div>
                 </div>
               </button>
             );
@@ -129,9 +156,9 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
         </div>
 
         {DELAY_BASED_TYPES.has(selected) && (
-          <div className="rounded-lg border border-slate-200 bg-white p-4 animate-fade-in">
+          <div className="rounded-lg border border-line bg-white p-4 animate-fade-in">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-slate-900">Delay by</span>
+              <span className="text-xs font-medium text-ink">Delay by</span>
               <span className="text-lg font-bold text-safar-blue">{delayMinutesInput} min</span>
             </div>
             <input
@@ -144,7 +171,7 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
               aria-label="Delay in minutes"
               className="w-full" style={{ accentColor: '#2563EB' }}
             />
-            <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
+            <div className="mt-2 flex items-center justify-between text-[10px] text-ink-muted">
               <span>15 min</span>
               <span>95 min (demo scenario)</span>
               <span>6h</span>
@@ -152,39 +179,39 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
           </div>
         )}
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">Computed impact preview</div>
+        <div className="rounded-lg border border-line bg-white p-4">
+          <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-ink-muted">Computed impact preview</div>
           {previewLoading ? (
-            <div className="flex items-center gap-2 text-xs text-slate-600">
+            <div className="flex items-center gap-2 text-xs text-ink-muted">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Running propagation engine...
             </div>
           ) : preview ? (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-[10px] text-slate-500">Impact level</div>
+                <div className="text-[10px] text-ink-muted">Impact level</div>
                 <div className={cn('text-sm font-semibold', preview.disruption.impactLevel === 'low' ? 'text-safar-safe' : preview.disruption.impactLevel === 'medium' ? 'text-safar-risk' : 'text-safar-broken')}>
                   {preview.disruption.impactLevel.toUpperCase()}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500">Downstream</div>
-                <div className="text-sm text-slate-900">{affectedCount} node(s) affected</div>
+                <div className="text-[10px] text-ink-muted">Downstream</div>
+                <div className="text-sm text-ink">{affectedCount} node(s) affected</div>
               </div>
             </div>
           ) : (
-            <div className="text-xs text-slate-500">Preview unavailable right now - you can still apply the scenario.</div>
+            <div className="text-xs text-ink-muted">Preview unavailable right now - you can still apply the scenario.</div>
           )}
         </div>
 
         <div className="flex items-center gap-2 rounded-lg bg-safar-risk/5 border border-safar-risk/20 p-3">
           <AlertTriangle className="h-4 w-4 shrink-0 text-safar-risk" />
-          <p className="text-[11px] text-slate-700">
+          <p className="text-[11px] text-ink-soft">
             Confirming applies this disruption to your trip, runs impact propagation, and prepares recovery options. You can reset the journey afterwards.
           </p>
         </div>
 
         <div className="flex items-center justify-between">
-          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-slate-600 transition hover:text-slate-900">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-ink-muted transition hover:text-ink">
             Cancel
           </button>
           <button
@@ -194,7 +221,7 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
               'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition',
               !isBusy
                 ? 'bg-gradient-to-r from-safar-broken to-safar-saffron hover:brightness-110 shadow-card'
-                : 'bg-slate-300 cursor-not-allowed opacity-50'
+                : 'bg-line-strong cursor-not-allowed opacity-50'
             )}
           >
             <Zap className="h-4 w-4" />

@@ -1,0 +1,703 @@
+{
+  "fresh_trips_count": 0,
+  "user1": {
+    "token": "dHJhdmVsZXItNzQzNzQwY2QxNjoxNzkwNDU2NTM1OjU4NjI3YjA0ZWRiYTFhNGM1NzNiYWRjYTE4NjBhZmIyNzA3Nzk1N2MyYmIzNzNhZjUwODk0NjQ4NDQ4ZjdhZDY=",
+    "travelerId": "traveler-743740cd16",
+    "name": "Kenji Sato",
+    "email": "kenji.sato@example.com"
+  },
+  "trip1": {
+    "id": "trip-b9bf5c7e71",
+    "name": "Tokyo & Kyoto Cultural Summit 2026",
+    "travelerName": "Kenji Sato",
+    "route": "Tokyo \u2192 Kyoto",
+    "origin": "Tokyo",
+    "destination": "Kyoto",
+    "startDate": "10 Nov 2026",
+    "endDate": "20 Nov 2026",
+    "nodes": [],
+    "edges": [],
+    "tripValue": 0.0,
+    "healthScore": 100,
+    "status": "operational",
+    "days": []
+  },
+  "node1": {
+    "id": "node-3c31598e7d",
+    "category": "flight",
+    "label": "Flight HND -> KIX",
+    "title": "Flight HND -> KIX",
+    "subtitle": "All Nippon Airways \u00b7 NH1029",
+    "location": "Tokyo Haneda Airport",
+    "scheduledTime": "10 Nov \u00b7 09:00\u201310:30",
+    "actualTime": null,
+    "buffer": null,
+    "provider": "All Nippon Airways",
+    "confirmation": "NH1029",
+    "cost": 18500.0,
+    "cancellationPolicy": "",
+    "refundable": false,
+    "riskLevel": 47,
+    "dependencyCount": 0,
+    "status": "healthy",
+    "day": 1,
+    "icon": "plane",
+    "description": null,
+    "refundAmount": 0.0,
+    "lat": null,
+    "lng": null,
+    "reason": null,
+    "causedBy": null,
+    "scheduledStart": "2026-11-10T09:00:00",
+    "scheduledEnd": "2026-11-10T10:30:00",
+    "actualStart": null,
+    "actualEnd": null,
+    "availableBufferMinutes": null,
+    "requiredBufferMinutes": null
+  },
+  "node2": {
+    "id": "node-ab6b3a8278",
+    "category": "transfer",
+    "label": "Airport Express Train to Kyoto",
+    "title": "Airport Express Train to Kyoto",
+    "subtitle": "Haruka Express \u00b7 HK-9941",
+    "location": "Kansai Airport Station",
+    "scheduledTime": "10 Nov \u00b7 11:15\u201312:30",
+    "actualTime": null,
+    "buffer": null,
+    "provider": "Haruka Express",
+    "confirmation": "HK-9941",
+    "cost": 3500.0,
+    "cancellationPolicy": "",
+    "refundable": false,
+    "riskLevel": 90,
+    "dependencyCount": 0,
+    "status": "healthy",
+    "day": 2,
+    "icon": "car",
+    "description": null,
+    "refundAmount": 0.0,
+    "lat": null,
+    "lng": null,
+    "reason": null,
+    "causedBy": null,
+    "scheduledStart": "2026-11-10T11:15:00",
+    "scheduledEnd": "2026-11-10T12:30:00",
+    "actualStart": null,
+    "actualEnd": null,
+    "availableBufferMinutes": null,
+    "requiredBufferMinutes": null
+  },
+  "node3": {
+    "id": "node-5d47a11c0e",
+    "category": "hotel",
+    "label": "Kyoto Grand Hotel Check-in",
+    "title": "Kyoto Grand Hotel Check-in",
+    "subtitle": "Kyoto Grand Hotel \u00b7 KGH-55201",
+    "location": "Kyoto Central",
+    "scheduledTime": "10 Nov \u00b7 13:00 \u2014 15 Nov \u00b7 11:00",
+    "actualTime": null,
+    "buffer": null,
+    "provider": "Kyoto Grand Hotel",
+    "confirmation": "KGH-55201",
+    "cost": 45000.0,
+    "cancellationPolicy": "",
+    "refundable": false,
+    "riskLevel": 90,
+    "dependencyCount": 0,
+    "status": "healthy",
+    "day": 3,
+    "icon": "hotel",
+    "description": null,
+    "refundAmount": 0.0,
+    "lat": null,
+    "lng": null,
+    "reason": null,
+    "causedBy": null,
+    "scheduledStart": "2026-11-10T13:00:00",
+    "scheduledEnd": "2026-11-15T11:00:00",
+    "actualStart": null,
+    "actualEnd": null,
+    "availableBufferMinutes": null,
+    "requiredBufferMinutes": null
+  },
+  "disruption": {
+    "disruption": {
+      "id": "disruption-074c4c034d",
+      "type": "flight-delay",
+      "label": "Delay Flight HND -> KIX by 3h",
+      "primaryNodeId": "node-3c31598e7d",
+      "delayMinutes": 180,
+      "impactLevel": "high",
+      "directImpact": 1,
+      "downstreamImpact": 2,
+      "financialExposure": 67000.0,
+      "refundExposure": 0.0,
+      "cascadeSteps": [
+        {
+          "id": "cascade-e724392da1",
+          "description": "Flight HND -> KIX: delayed \u2014 Delayed by 180 minutes.",
+          "nodeId": "node-3c31598e7d",
+          "timestamp": "09:00"
+        },
+        {
+          "id": "cascade-bbf790e0af",
+          "description": "Airport Express Train to Kyoto: broken \u2014 Required buffer is 60 minutes but only 0 minutes remain.",
+          "nodeId": "node-ab6b3a8278",
+          "timestamp": "11:15"
+        },
+        {
+          "id": "cascade-9e7a0a5772",
+          "description": "Kyoto Grand Hotel Check-in: broken \u2014 Kyoto Grand Hotel Check-in depends on Airport Express Train to Kyoto, which is broken.",
+          "nodeId": "node-5d47a11c0e",
+          "timestamp": "13:00"
+        }
+      ],
+      "detectedAt": "09:00"
+    },
+    "impacts": [
+      {
+        "nodeId": "node-3c31598e7d",
+        "status": "delayed",
+        "reason": "Delayed by 180 minutes.",
+        "causedBy": null,
+        "availableBufferMinutes": null,
+        "requiredBufferMinutes": null
+      },
+      {
+        "nodeId": "node-ab6b3a8278",
+        "status": "broken",
+        "reason": "Required buffer is 60 minutes but only 0 minutes remain.",
+        "causedBy": "node-3c31598e7d",
+        "availableBufferMinutes": 0,
+        "requiredBufferMinutes": 60
+      },
+      {
+        "nodeId": "node-5d47a11c0e",
+        "status": "broken",
+        "reason": "Kyoto Grand Hotel Check-in depends on Airport Express Train to Kyoto, which is broken.",
+        "causedBy": "node-ab6b3a8278",
+        "availableBufferMinutes": 0,
+        "requiredBufferMinutes": 60
+      }
+    ],
+    "sequence": [
+      "node-3c31598e7d",
+      "node-ab6b3a8278",
+      "node-5d47a11c0e"
+    ],
+    "tripHealthScore": 0
+  },
+  "trip1_after_disruption": {
+    "id": "trip-b9bf5c7e71",
+    "name": "Tokyo & Kyoto Cultural Summit 2026",
+    "travelerName": "Kenji Sato",
+    "route": "Tokyo \u2192 Kyoto",
+    "origin": "Tokyo",
+    "destination": "Kyoto",
+    "startDate": "10 Nov 2026",
+    "endDate": "20 Nov 2026",
+    "nodes": [
+      {
+        "id": "node-3c31598e7d",
+        "category": "flight",
+        "label": "Flight HND -> KIX",
+        "title": "Flight HND -> KIX",
+        "subtitle": "All Nippon Airways \u00b7 NH1029",
+        "location": "Tokyo Haneda Airport",
+        "scheduledTime": "10 Nov \u00b7 09:00\u201310:30",
+        "actualTime": "10 Nov \u00b7 09:00\u201313:30",
+        "buffer": null,
+        "provider": "All Nippon Airways",
+        "confirmation": "NH1029",
+        "cost": 18500.0,
+        "cancellationPolicy": "",
+        "refundable": false,
+        "riskLevel": 49,
+        "dependencyCount": 2,
+        "status": "delayed",
+        "day": 1,
+        "icon": "plane",
+        "description": null,
+        "refundAmount": 0.0,
+        "lat": null,
+        "lng": null,
+        "reason": "Delayed by 180 minutes.",
+        "causedBy": null,
+        "scheduledStart": "2026-11-10T09:00:00",
+        "scheduledEnd": "2026-11-10T10:30:00",
+        "actualStart": "2026-11-10T09:00:00",
+        "actualEnd": "2026-11-10T13:30:00",
+        "availableBufferMinutes": null,
+        "requiredBufferMinutes": null
+      },
+      {
+        "id": "node-ab6b3a8278",
+        "category": "transfer",
+        "label": "Airport Express Train to Kyoto",
+        "title": "Airport Express Train to Kyoto",
+        "subtitle": "Haruka Express \u00b7 HK-9941",
+        "location": "Kansai Airport Station",
+        "scheduledTime": "10 Nov \u00b7 11:15\u201312:30",
+        "actualTime": null,
+        "buffer": null,
+        "provider": "Haruka Express",
+        "confirmation": "HK-9941",
+        "cost": 3500.0,
+        "cancellationPolicy": "",
+        "refundable": false,
+        "riskLevel": 91,
+        "dependencyCount": 1,
+        "status": "broken",
+        "day": 2,
+        "icon": "car",
+        "description": null,
+        "refundAmount": 0.0,
+        "lat": null,
+        "lng": null,
+        "reason": "Required buffer is 60 minutes but only 0 minutes remain.",
+        "causedBy": "node-3c31598e7d",
+        "scheduledStart": "2026-11-10T11:15:00",
+        "scheduledEnd": "2026-11-10T12:30:00",
+        "actualStart": null,
+        "actualEnd": null,
+        "availableBufferMinutes": null,
+        "requiredBufferMinutes": null
+      },
+      {
+        "id": "node-5d47a11c0e",
+        "category": "hotel",
+        "label": "Kyoto Grand Hotel Check-in",
+        "title": "Kyoto Grand Hotel Check-in",
+        "subtitle": "Kyoto Grand Hotel \u00b7 KGH-55201",
+        "location": "Kyoto Central",
+        "scheduledTime": "10 Nov \u00b7 13:00 \u2014 15 Nov \u00b7 11:00",
+        "actualTime": null,
+        "buffer": null,
+        "provider": "Kyoto Grand Hotel",
+        "confirmation": "KGH-55201",
+        "cost": 45000.0,
+        "cancellationPolicy": "",
+        "refundable": false,
+        "riskLevel": 90,
+        "dependencyCount": 0,
+        "status": "broken",
+        "day": 3,
+        "icon": "hotel",
+        "description": null,
+        "refundAmount": 0.0,
+        "lat": null,
+        "lng": null,
+        "reason": "Kyoto Grand Hotel Check-in depends on Airport Express Train to Kyoto, which is broken.",
+        "causedBy": "node-ab6b3a8278",
+        "scheduledStart": "2026-11-10T13:00:00",
+        "scheduledEnd": "2026-11-15T11:00:00",
+        "actualStart": null,
+        "actualEnd": null,
+        "availableBufferMinutes": null,
+        "requiredBufferMinutes": null
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-d2d1b01266",
+        "source": "node-3c31598e7d",
+        "target": "node-ab6b3a8278",
+        "status": "broken",
+        "label": "Flight HND -> KIX \u2192 Airport Express Train to Kyoto",
+        "type": "dependency",
+        "animated": true
+      },
+      {
+        "id": "edge-4e47a06564",
+        "source": "node-ab6b3a8278",
+        "target": "node-5d47a11c0e",
+        "status": "broken",
+        "label": "Airport Express Train to Kyoto \u2192 Kyoto Grand Hotel Check-in",
+        "type": "dependency",
+        "animated": true
+      }
+    ],
+    "tripValue": 67000.0,
+    "healthScore": 0,
+    "status": "disrupted",
+    "days": [
+      {
+        "day": 1,
+        "date": "10 Nov",
+        "title": "Arrival & check-in",
+        "summary": "Flight HND -> KIX",
+        "nodeIds": [
+          "node-3c31598e7d"
+        ]
+      },
+      {
+        "day": 2,
+        "date": "10 Nov",
+        "title": "Excursion day",
+        "summary": "Airport Express Train to Kyoto",
+        "nodeIds": [
+          "node-ab6b3a8278"
+        ]
+      },
+      {
+        "day": 3,
+        "date": "10 Nov",
+        "title": "Excursion day",
+        "summary": "Kyoto Grand Hotel Check-in",
+        "nodeIds": [
+          "node-5d47a11c0e"
+        ]
+      }
+    ]
+  },
+  "recovery": [
+    {
+      "id": "recovery-4ca41a1e60",
+      "name": "Rebook with City Rail Express",
+      "tag": "ALTERNATIVE",
+      "tagColor": "blue",
+      "description": "Replace Airport Express Train to Kyoto with City Rail Express (CRE-808).",
+      "costDelta": -2650.0,
+      "timeImpactMinutes": 0,
+      "bookingsPreserved": 3,
+      "totalBookings": 3,
+      "refundRecovered": 0.0,
+      "residualRisk": "high",
+      "score": 76,
+      "changes": [
+        {
+          "nodeId": "node-ab6b3a8278",
+          "nodeLabel": "Airport Express Train to Kyoto",
+          "changeType": "rebooked",
+          "description": "Rebooked with City Rail Express (CRE-808)."
+        }
+      ],
+      "scoreBreakdown": {
+        "cost": 100,
+        "speed": 80,
+        "preservation": 100,
+        "comfort": 70,
+        "risk": 20
+      },
+      "feasible": true,
+      "providerReason": null,
+      "dataSource": "simulated"
+    },
+    {
+      "id": "recovery-170f531224",
+      "name": "Rebook with Express Cab Service",
+      "tag": "ALTERNATIVE",
+      "tagColor": "blue",
+      "description": "Replace Airport Express Train to Kyoto with Express Cab Service (ECS-201).",
+      "costDelta": -2000.0,
+      "timeImpactMinutes": 0,
+      "bookingsPreserved": 3,
+      "totalBookings": 3,
+      "refundRecovered": 0.0,
+      "residualRisk": "medium",
+      "score": 64,
+      "changes": [
+        {
+          "nodeId": "node-ab6b3a8278",
+          "nodeLabel": "Airport Express Train to Kyoto",
+          "changeType": "rebooked",
+          "description": "Rebooked with Express Cab Service (ECS-201)."
+        }
+      ],
+      "scoreBreakdown": {
+        "cost": 0,
+        "speed": 80,
+        "preservation": 100,
+        "comfort": 70,
+        "risk": 41
+      },
+      "feasible": true,
+      "providerReason": null,
+      "dataSource": "simulated"
+    }
+  ],
+  "apply_recovery": {
+    "trip": {
+      "id": "trip-b9bf5c7e71",
+      "name": "Tokyo & Kyoto Cultural Summit 2026",
+      "travelerName": "Kenji Sato",
+      "route": "Tokyo \u2192 Kyoto",
+      "origin": "Tokyo",
+      "destination": "Kyoto",
+      "startDate": "10 Nov 2026",
+      "endDate": "20 Nov 2026",
+      "nodes": [
+        {
+          "id": "node-3c31598e7d",
+          "category": "flight",
+          "label": "Flight HND -> KIX",
+          "title": "Flight HND -> KIX",
+          "subtitle": "All Nippon Airways \u00b7 NH1029",
+          "location": "Tokyo Haneda Airport",
+          "scheduledTime": "10 Nov \u00b7 09:00\u201310:30",
+          "actualTime": "10 Nov \u00b7 09:00\u201313:30",
+          "buffer": null,
+          "provider": "All Nippon Airways",
+          "confirmation": "NH1029",
+          "cost": 18500.0,
+          "cancellationPolicy": "",
+          "refundable": false,
+          "riskLevel": 47,
+          "dependencyCount": 0,
+          "status": "delayed",
+          "day": 1,
+          "icon": "plane",
+          "description": null,
+          "refundAmount": 0.0,
+          "lat": null,
+          "lng": null,
+          "reason": "Delayed by 180 minutes.",
+          "causedBy": null,
+          "scheduledStart": "2026-11-10T09:00:00",
+          "scheduledEnd": "2026-11-10T10:30:00",
+          "actualStart": "2026-11-10T09:00:00",
+          "actualEnd": "2026-11-10T13:30:00",
+          "availableBufferMinutes": null,
+          "requiredBufferMinutes": null
+        },
+        {
+          "id": "node-ab6b3a8278",
+          "category": "transfer",
+          "label": "Airport Express Train to Kyoto",
+          "title": "Airport Express Train to Kyoto",
+          "subtitle": "Haruka Express \u00b7 HK-9941",
+          "location": "Kansai Airport Station",
+          "scheduledTime": "10 Nov \u00b7 10:30\u201311:45",
+          "actualTime": null,
+          "buffer": null,
+          "provider": "City Rail Express",
+          "confirmation": "CRE-808",
+          "cost": 850.0,
+          "cancellationPolicy": "",
+          "refundable": false,
+          "riskLevel": 48,
+          "dependencyCount": 1,
+          "status": "recovered",
+          "day": 2,
+          "icon": "car",
+          "description": null,
+          "refundAmount": 0.0,
+          "lat": null,
+          "lng": null,
+          "reason": null,
+          "causedBy": null,
+          "scheduledStart": "2026-11-10T10:30:00",
+          "scheduledEnd": "2026-11-10T11:45:00",
+          "actualStart": "2026-11-10T10:30:00",
+          "actualEnd": "2026-11-10T11:45:00",
+          "availableBufferMinutes": null,
+          "requiredBufferMinutes": null
+        },
+        {
+          "id": "node-5d47a11c0e",
+          "category": "hotel",
+          "label": "Kyoto Grand Hotel Check-in",
+          "title": "Kyoto Grand Hotel Check-in",
+          "subtitle": "Kyoto Grand Hotel \u00b7 KGH-55201",
+          "location": "Kyoto Central",
+          "scheduledTime": "10 Nov \u00b7 13:00 \u2014 15 Nov \u00b7 11:00",
+          "actualTime": null,
+          "buffer": null,
+          "provider": "Kyoto Grand Hotel",
+          "confirmation": "KGH-55201",
+          "cost": 45000.0,
+          "cancellationPolicy": "",
+          "refundable": false,
+          "riskLevel": 79,
+          "dependencyCount": 0,
+          "status": "recovered",
+          "day": 3,
+          "icon": "hotel",
+          "description": null,
+          "refundAmount": 0.0,
+          "lat": null,
+          "lng": null,
+          "reason": null,
+          "causedBy": null,
+          "scheduledStart": "2026-11-10T13:00:00",
+          "scheduledEnd": "2026-11-15T11:00:00",
+          "actualStart": "2026-11-10T13:00:00",
+          "actualEnd": "2026-11-15T11:00:00",
+          "availableBufferMinutes": null,
+          "requiredBufferMinutes": null
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-4e47a06564",
+          "source": "node-ab6b3a8278",
+          "target": "node-5d47a11c0e",
+          "status": "recovered",
+          "label": "Airport Express Train to Kyoto \u2192 Kyoto Grand Hotel Check-in",
+          "type": "dependency",
+          "animated": false
+        }
+      ],
+      "tripValue": 67000.0,
+      "healthScore": 51,
+      "status": "recovered",
+      "days": [
+        {
+          "day": 1,
+          "date": "10 Nov",
+          "title": "Arrival & check-in",
+          "summary": "Flight HND -> KIX",
+          "nodeIds": [
+            "node-3c31598e7d"
+          ]
+        },
+        {
+          "day": 2,
+          "date": "10 Nov",
+          "title": "Excursion day",
+          "summary": "Airport Express Train to Kyoto",
+          "nodeIds": [
+            "node-ab6b3a8278"
+          ]
+        },
+        {
+          "day": 3,
+          "date": "10 Nov",
+          "title": "Excursion day",
+          "summary": "Kyoto Grand Hotel Check-in",
+          "nodeIds": [
+            "node-5d47a11c0e"
+          ]
+        }
+      ]
+    },
+    "appliedRecovery": {
+      "id": "recovery-4ca41a1e60",
+      "name": "Rebook with City Rail Express",
+      "tag": "ALTERNATIVE",
+      "tagColor": "blue",
+      "description": "Replace Airport Express Train to Kyoto with City Rail Express (CRE-808).",
+      "costDelta": -2650.0,
+      "timeImpactMinutes": 0,
+      "bookingsPreserved": 3,
+      "totalBookings": 3,
+      "refundRecovered": 0.0,
+      "residualRisk": "high",
+      "score": 76,
+      "changes": [
+        {
+          "nodeId": "node-ab6b3a8278",
+          "nodeLabel": "Airport Express Train to Kyoto",
+          "changeType": "rebooked",
+          "description": "Rebooked with City Rail Express (CRE-808)."
+        }
+      ],
+      "scoreBreakdown": {
+        "cost": 100,
+        "speed": 80,
+        "preservation": 100,
+        "comfort": 70,
+        "risk": 20
+      },
+      "feasible": true,
+      "providerReason": null,
+      "dataSource": "simulated"
+    },
+    "activityEvent": {
+      "id": "evt-010c1d2ff2",
+      "timestamp": "21:02",
+      "type": "recovery",
+      "message": "Recovery applied: Rebook with City Rail Express",
+      "detail": "3/3 bookings preserved."
+    },
+    "notification": {
+      "id": "notif-652187ad34",
+      "severity": "low",
+      "category": "recovery",
+      "title": "Recovery applied",
+      "message": "Your itinerary has been recalculated. 3/3 commitments preserved.",
+      "timestamp": "21:02",
+      "read": false
+    }
+  },
+  "user2": {
+    "token": "dHJhdmVsZXItZDcxMmE1ZmY4OToxNzkwNDU2NTM1OjA5ODM1NjIyNjJkYjU1ZmVjNjgwZjI3YjMyYmMwNGVhZDc4YzFlNGEzYzRlYzNkMjVmODMzMzUyMThjMmY1OGE=",
+    "travelerId": "traveler-d712a5ff89",
+    "name": "Elena Rostova",
+    "email": "elena.rostova@example.com"
+  },
+  "trip2": {
+    "id": "trip-d02e09f225",
+    "name": "Singapore Tech Forum 2026",
+    "travelerName": "Elena Rostova",
+    "route": "Bangalore \u2192 Singapore",
+    "origin": "Bangalore",
+    "destination": "Singapore",
+    "startDate": "01 Dec 2026",
+    "endDate": "05 Dec 2026",
+    "nodes": [],
+    "edges": [],
+    "tripValue": 0.0,
+    "healthScore": 100,
+    "status": "operational",
+    "days": []
+  },
+  "trip2_risks": {
+    "score": {
+      "tripResilience": 52,
+      "connectionRisk": 90,
+      "scheduleRisk": 90,
+      "vendorRisk": 46,
+      "weatherRisk": 8
+    },
+    "cards": [
+      {
+        "nodeId": "node-3e0f80002f",
+        "nodeLabel": "Connecting Flight SIN -> DPS",
+        "riskType": "HIGH CONNECTION RISK",
+        "riskLevel": "high",
+        "riskPercent": 90,
+        "buffer": "35 min",
+        "recommended": "90 min+",
+        "historicalRisk": "Elevated",
+        "downstreamImpact": 0,
+        "recommendation": "Consider a plan that increases this buffer to 90+ minutes."
+      },
+      {
+        "nodeId": "node-e885a21f29",
+        "nodeLabel": "Flight BLR -> SIN",
+        "riskType": "STRICT CANCELLATION WINDOW",
+        "riskLevel": "medium",
+        "riskPercent": 46,
+        "buffer": null,
+        "recommended": null,
+        "historicalRisk": "Low",
+        "downstreamImpact": 1,
+        "recommendation": "Monitor this booking closely; cancellation would be costly."
+      }
+    ],
+    "alerts": [
+      {
+        "id": "alert-node-3e0f80002f",
+        "severity": "high",
+        "title": "Connection buffer is only 35 minutes above the minimum required buffer of 60 minutes.",
+        "reason": "available buffer is 35 minutes against a 60-minute minimum, airport/location complexity factor for Singapore Changi Airport, 0 downstream booking(s) depend on this connection",
+        "impact": "\u20b99,000 at risk if this fails.",
+        "action": "Consider a plan that increases this buffer to 90+ minutes.",
+        "nodeId": "node-3e0f80002f",
+        "timestamp": "just now"
+      },
+      {
+        "id": "alert-node-e885a21f29",
+        "severity": "medium",
+        "title": "Non-refundable booking with 100% cost exposure if cancelled.",
+        "reason": "vendor reliability score 0.92 for Singapore Airlines, non-refundable or low refund percentage, 1 downstream booking(s) would be affected if this fails",
+        "impact": "1 downstream booking(s) could be affected.",
+        "action": "Monitor this booking closely; cancellation would be costly.",
+        "nodeId": "node-e885a21f29",
+        "timestamp": "just now"
+      }
+    ]
+  }
+}

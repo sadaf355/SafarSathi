@@ -14,6 +14,9 @@ class TripRepository:
     def list_all(self) -> list[Trip]:
         return list(self.db.scalars(select(Trip)))
 
+    def list_active(self) -> list[Trip]:
+        return self.list_all()
+
     def list_by_traveler(self, traveler_id: str) -> list[Trip]:
         return list(self.db.scalars(select(Trip).where(Trip.traveler_id == traveler_id)))
 

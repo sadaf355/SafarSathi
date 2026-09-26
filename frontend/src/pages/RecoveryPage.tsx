@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '@/store/AppContext';
+import * as api from '@/services/api';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useRouter } from '@/lib/router';
 import { useJourney } from '@/hooks/useTravelData';
@@ -38,6 +39,16 @@ export function RecoveryPage() {
   const selected = ranked.find((o) => o.id === selectedRecovery) ?? ranked[0] ?? null;
   const fastestId = [...ranked].sort((a, b) => a.timeImpactMinutes - b.timeImpactMinutes || b.scoreBreakdown.speed - a.scoreBreakdown.speed)[0]?.id;
   const cheapestId = [...ranked].sort((a, b) => a.costDelta - b.costDelta)[0]?.id;
+
+  // Executive summary + narrative for the current ranking (refreshed whenever options change).
+  const [summary, setSummary] = useState<api.RecoveryNarrative | null>(null);
+  const optionKey = recoveryOptions.map((o) => `${o.id}:${o.score}`).join('|');
+  useEffect(() => {
+    if (!optionKey || !trip.id) { setSummary(null); return; }
+    let cancelled = false;
+    api.getRecoveryNarrative(trip.id).then((n) => { if (!cancelled) setSummary(n); }).catch(() => { if (!cancelled) setSummary(null); });
+    return () => { cancelled = true; };
+  }, [optionKey, trip.id]);
 
   // A disruption exists but options haven't been generated yet (e.g. restored session).
   useEffect(() => {
@@ -84,7 +95,7 @@ export function RecoveryPage() {
 
   return (
     <div className="animate-fade-in">
-      <PageHero
+      <PageHero crumbs={[{ label: 'Recovery Options' }]} showTripBadge
         title={heroTitle}
         subtitle={<span className="text-[17px] sm:text-lg">{heroSubtitle}</span>}
         actions={<button onClick={() => navigate('dashboard')} className="btn-ghost"><ArrowLeft className="h-4 w-4" /> Back to Dashboard</button>}
@@ -146,12 +157,30 @@ export function RecoveryPage() {
           <>
             <PreferenceSelector value={priority} onChange={changePriority} busy={reranking} />
 
+            {summary?.executiveSummary && ranked.length > 0 && (
+              <section className="ai-surface flex items-start gap-3 p-4" aria-live="polite">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-ai shadow-card"><Sparkles className="h-4 w-4" /></span>
+                <div className="min-w-0 text-sm">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-ai">Why these recommendations{summary.source === 'llm' ? ' · AI' : ''}</div>
+                  <p className="mt-1 font-semibold text-ink">{summary.executiveSummary}</p>
+                  {summary.narrative && <p className="mt-1 leading-relaxed text-ink-soft">{summary.narrative}</p>}
+                </div>
+              </section>
+            )}
+
             {unavailable.map((o) => (
               <div key={o.id} className="rounded-2xl border border-danger/20 bg-danger-light/60 p-4 text-sm">
                 <div className="font-semibold text-danger">{o.name}</div>
                 <p className="mt-1 text-ink-soft">{o.providerReason || o.description}</p>
               </div>
             ))}
+
+            {ranked.some((o) => o.dataSource === 'simulated' || !o.dataSource) && (
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-canvas px-3.5 py-2 text-xs text-ink-muted">
+                <CircleDashed className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                <span>Simulated pricing — connect a live provider for real-time availability</span>
+              </div>
+            )}
 
             {ranked.length === 0 ? (
               <GeneratingPlans />

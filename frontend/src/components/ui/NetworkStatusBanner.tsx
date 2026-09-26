@@ -35,7 +35,7 @@ export function NetworkStatusBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-4 right-4 z-50 flex max-w-md items-center gap-3 rounded-xl border border-safar-risk/40 bg-white/95 p-3.5 shadow-2xl backdrop-blur-md"
+      className="fixed bottom-4 right-4 z-50 flex max-w-md items-center gap-3 rounded-xl border border-safar-risk/40 bg-white/95 p-3.5 shadow-lift backdrop-blur-md"
     >
       {isOffline ? (
         <>
@@ -43,8 +43,8 @@ export function NetworkStatusBanner() {
             <WifiOff className="h-5 w-5" />
           </div>
           <div className="text-xs">
-            <p className="font-semibold text-slate-900">You are currently offline</p>
-            <p className="text-slate-600">Live DAG updates and AI assistant responses will resume once reconnected.</p>
+            <p className="font-semibold text-ink">You are currently offline</p>
+            <p className="text-ink-muted">Live DAG updates and AI assistant responses will resume once reconnected.</p>
           </div>
         </>
       ) : (
@@ -53,8 +53,8 @@ export function NetworkStatusBanner() {
             <RefreshCw className="h-5 w-5 animate-spin" />
           </div>
           <div className="text-xs">
-            <p className="font-semibold text-slate-900">Waking cloud services...</p>
-            <p className="text-slate-600">The cloud engine is starting up. Your request will finish automatically.</p>
+            <p className="font-semibold text-ink">Waking cloud services...</p>
+            <p className="text-ink-muted">The cloud engine is starting up. Your request will finish automatically.</p>
           </div>
         </>
       )}

@@ -6,6 +6,8 @@ import { clearStoredToken, getStoredToken, setStoredToken } from '@/lib/authStor
 export type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
 
 const DATA_MODE_KEY = 'safarsathi.dataMode';
+/** Shown when the backend runs without seeded demo data (SEED_DEMO_DATA off). */
+export const DEMO_UNAVAILABLE_MESSAGE = 'Production mode active — please create a new account or use Explore Offline Demo';
 
 function readStoredMode(): api.DataMode {
   try {
@@ -108,7 +110,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [withAuthResponse]
   );
 
-  const continueAsDemo = useCallback(() => withAuthResponse(() => api.getDemoAccount()), [withAuthResponse]);
+  const continueAsDemo = useCallback(async () => {
+    try {
+      await withAuthResponse(() => api.getDemoAccount());
+    } catch (err) {
+      // 404 = the server is in production mode with no seeded demo traveler.
+      if (err instanceof ApiError && err.status === 404) setState((s) => ({ ...s, error: DEMO_UNAVAILABLE_MESSAGE }));
+      throw err;
+    }
+  }, [withAuthResponse]);
 
   const continueOffline = useCallback(async () => {
     clearStoredToken();

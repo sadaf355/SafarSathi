@@ -8,7 +8,9 @@ scheduled hour instead of inferring weather risk from time of day.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+import threading
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -165,3 +167,177 @@ class OpenMeteoWeatherProvider:
         )
         self._cache[key] = (snapshot, datetime.utcnow() + timedelta(minutes=10))
         return snapshot
+
+
+# ---------------------------------------------------------------------------
+# 7-day forecast provider (Digital Twin / weather endpoints)
+# ---------------------------------------------------------------------------
+
+
+
+@dataclass(frozen=True)
+class HourlyWeather:
+    time: datetime
+    temperature_c: float
+    precipitation_probability: int
+    rainfall_mm: float
+    wind_speed_kmh: float
+    cloud_cover: int
+    visibility_m: float
+    weather_code: int
+
+    @property
+    def label(self) -> str:
+        return OpenMeteoWeatherProvider._label(self.weather_code)
+
+    @property
+    def risk_percent(self) -> int:
+        return WeatherSnapshot(
+            temperature=self.temperature_c,
+            precipitation_probability=self.precipitation_probability,
+            wind_speed=self.wind_speed_kmh,
+            weather_code=self.weather_code,
+            label=self.label,
+            fetched_at=self.time,
+        ).risk_percent
+
+
+@dataclass(frozen=True)
+class WeatherForecast:
+    lat: float
+    lng: float
+    source: str  # "open-meteo" | "fallback"
+    current: HourlyWeather
+    hourly: list[HourlyWeather] = field(default_factory=list)
+    fetched_at: datetime = field(default_factory=datetime.utcnow)
+
+    def at(self, moment: datetime) -> HourlyWeather:
+        """Nearest forecast hour; outside the forecast range, a deterministic
+        climatology estimate for that moment."""
+        target = moment.replace(minute=0, second=0, microsecond=0)
+        if self.hourly and self.hourly[0].time <= target <= self.hourly[-1].time:
+            return min(self.hourly, key=lambda h: abs(h.time - target))
+        return synthetic_hour(self.lat, self.lng, target)
+
+
+def synthetic_hour(lat: float, lng: float, moment: datetime) -> HourlyWeather:
+    """Deterministic, plausible weather for any coordinate and hour, used when
+    Open-Meteo is unreachable (offline demos, tests) or for dates outside the
+    forecast window. Same inputs always give the same output."""
+    doy = moment.timetuple().tm_yday
+    hour = moment.hour
+    abs_lat = abs(lat)
+    # Temperature: latitude band + season (flipped for the southern hemisphere) + diurnal swing.
+    seasonal = math.cos((doy - 196) / 365 * 2 * math.pi) * (1 if lat >= 0 else -1)
+    base = 30 - abs_lat * 0.45 + seasonal * min(14, abs_lat * 0.35)
+    diurnal = math.sin((hour - 9) / 24 * 2 * math.pi) * 5
+    seed = math.sin(lat * 12.9898 + lng * 78.233 + doy * 0.1 + hour * 0.37) * 43758.5453
+    jitter = seed - math.floor(seed)  # 0..1
+    temperature = round(base + diurnal + (jitter - 0.5) * 3, 1)
+    # South Asian monsoon (Jun-Sep, 5-35N, 65-100E) is wet; elsewhere mostly dry spells.
+    monsoon = 152 <= doy <= 273 and 5 <= lat <= 35 and 65 <= lng <= 100
+    wetness = 0.75 if monsoon else 0.25
+    precip_prob = int(round(min(100, max(0, (wetness * 100) * (0.55 + jitter * 0.6)))))
+    rainfall = round(max(0.0, (jitter - (0.35 if monsoon else 0.7)) * (18 if monsoon else 6)), 1)
+    wind = round(8 + jitter * 18 + (6 if monsoon else 0), 1)
+    cloud = int(round(min(100, precip_prob * 0.9 + jitter * 15)))
+    fog_hour = hour in (4, 5, 6, 7) and not monsoon and doy in range(335, 367) or (hour in (4, 5, 6, 7) and doy <= 45)
+    visibility = 900.0 + jitter * 1500 if fog_hour and lat > 20 else 8000.0 + jitter * 12000
+    if rainfall >= 7.6:
+        code = 65
+    elif rainfall >= 2.5:
+        code = 63
+    elif rainfall > 0:
+        code = 61
+    elif visibility < 1000:
+        code = 45
+    else:
+        code = 3 if cloud > 70 else 2 if cloud > 30 else 0
+    return HourlyWeather(moment, temperature, precip_prob, rainfall, wind, cloud, round(visibility), code)
+
+
+class WeatherForecastProvider:
+    """Live current conditions + 7-day hourly forecast from Open-Meteo (no API
+    key), cached 15 minutes per ~1 km grid cell, with a deterministic offline
+    fallback so callers always get an answer."""
+
+    FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+    HOURLY_FIELDS = "temperature_2m,precipitation_probability,rain,wind_speed_10m,cloud_cover,visibility,weather_code"
+    CACHE_MINUTES = 15
+
+    def __init__(self, client: httpx.Client | None = None, timeout_seconds: float = 4.0):
+        self._client = client
+        self.timeout_seconds = timeout_seconds
+        self._cache: dict[str, tuple[WeatherForecast, datetime]] = {}
+        self._lock = threading.Lock()
+
+    def _fetch(self, lat: float, lng: float) -> dict[str, Any]:
+        params = {"latitude": lat, "longitude": lng, "hourly": self.HOURLY_FIELDS, "current": self.HOURLY_FIELDS,
+                  "forecast_days": 7, "timezone": "auto"}
+        getter = self._client.get if self._client is not None else httpx.get
+        response = getter(self.FORECAST_URL, params=params, timeout=self.timeout_seconds)
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, dict) or not (data.get("hourly") or {}).get("time"):
+            raise ValueError("Open-Meteo returned no hourly forecast")
+        return data
+
+    @staticmethod
+    def _parse(data: dict[str, Any], lat: float, lng: float) -> WeatherForecast:
+        hourly = data["hourly"]
+
+        def pick(name: str, i: int, default: float = 0.0) -> float:
+            values = hourly.get(name) or []
+            raw = values[i] if i < len(values) else None
+            return float(default if raw is None else raw)
+
+        hours = [
+            HourlyWeather(
+                time=datetime.fromisoformat(str(t)),
+                temperature_c=pick("temperature_2m", i),
+                precipitation_probability=int(round(pick("precipitation_probability", i))),
+                rainfall_mm=pick("rain", i),
+                wind_speed_kmh=pick("wind_speed_10m", i),
+                cloud_cover=int(round(pick("cloud_cover", i))),
+                visibility_m=pick("visibility", i, 10000.0),
+                weather_code=int(round(pick("weather_code", i))),
+            )
+            for i, t in enumerate(hourly["time"])
+        ]
+        cur = data.get("current") or {}
+        if cur.get("time"):
+            current = HourlyWeather(
+                time=datetime.fromisoformat(str(cur["time"])).replace(minute=0),
+                temperature_c=float(cur.get("temperature_2m") or 0),
+                precipitation_probability=int(round(float(cur.get("precipitation_probability") or 0))),
+                rainfall_mm=float(cur.get("rain") or 0),
+                wind_speed_kmh=float(cur.get("wind_speed_10m") or 0),
+                cloud_cover=int(round(float(cur.get("cloud_cover") or 0))),
+                visibility_m=float(cur.get("visibility") or 10000),
+                weather_code=int(round(float(cur.get("weather_code") or 0))),
+            )
+        else:
+            current = hours[0]
+        return WeatherForecast(lat=lat, lng=lng, source="open-meteo", current=current, hourly=hours)
+
+    @staticmethod
+    def fallback(lat: float, lng: float, now: datetime | None = None) -> WeatherForecast:
+        start = (now or datetime.now()).replace(minute=0, second=0, microsecond=0)
+        hours = [synthetic_hour(lat, lng, start + timedelta(hours=i)) for i in range(7 * 24)]
+        return WeatherForecast(lat=lat, lng=lng, source="fallback", current=hours[0], hourly=hours)
+
+    def get_forecast(self, lat: float, lng: float) -> WeatherForecast:
+        key = f"{lat:.2f},{lng:.2f}"
+        with self._lock:
+            cached = self._cache.get(key)
+            if cached and cached[1] > datetime.utcnow():
+                return cached[0]
+        try:
+            forecast = self._parse(self._fetch(lat, lng), lat, lng)
+        except Exception:
+            forecast = self.fallback(lat, lng)
+        with self._lock:
+            # Fallbacks are cached briefly so a flapping network retries soon.
+            ttl = self.CACHE_MINUTES if forecast.source == "open-meteo" else 2
+            self._cache[key] = (forecast, datetime.utcnow() + timedelta(minutes=ttl))
+        return forecast

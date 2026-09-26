@@ -158,7 +158,7 @@ def get_trip_out(db: Session, trip_id: str, traveler_id: str | None = None) -> T
     return TripOut(
         id=trip.id,
         name=trip.name,
-        traveler_name=trip.traveler.name,
+        traveler_name=trip.traveler.name if trip.traveler else "",
         route=trip.route,
         origin=trip.origin,
         destination=trip.destination,
@@ -251,6 +251,10 @@ def add_node(db: Session, trip_id: str, traveler_id: str, request: NodeCreateReq
         icon=icon,
         origin_code=request.origin_code,
         destination_code=request.destination_code,
+        # Optional coordinates (geocoded by the client) so custom hotels and
+        # activities appear on the itinerary map.
+        lat=request.lat,
+        lng=request.lng,
     )
     NodeRepository(db).save(node)
 
@@ -266,6 +270,19 @@ def add_node(db: Session, trip_id: str, traveler_id: str, request: NodeCreateReq
         route=route,
     )
     db.add(booking)
+
+    if existing_nodes:
+        last_node = max(existing_nodes, key=lambda n: n.scheduled_end)
+        edge = DependencyEdge(
+            trip_id=trip_id,
+            source_id=last_node.id,
+            target_id=node.id,
+            dependency_type="hard" if (request.category in ("flight", "transfer", "hotel") and last_node.category in (NodeCategory.FLIGHT, NodeCategory.TRANSFER)) else "soft",
+            min_buffer_minutes=60,
+            risk_buffer_minutes=30,
+            label=f"{last_node.title} → {node.title}",
+        )
+        db.add(edge)
 
     trip.trip_value = trip.trip_value + request.cost
     db.commit()

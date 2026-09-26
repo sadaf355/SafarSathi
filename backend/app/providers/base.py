@@ -41,6 +41,9 @@ class ProviderAlternative:
     refundable: bool
     refund_percentage: float
     cancellation_deadline_hours: int
+    # "live" when the option came from a real provider API, "simulated" for
+    # mock/fallback inventory. Surfaced to travelers on each recovery plan.
+    source: str = "simulated"
 
 
 @dataclass

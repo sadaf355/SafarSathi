@@ -261,6 +261,17 @@ def _worst(outcomes: list[NodeImpact]) -> NodeImpact:
     return max(outcomes, key=lambda o: _STATUS_PRIORITY.get(o.status, 0))
 
 
+def _combine(direct: NodeImpact, cascaded: NodeImpact) -> NodeImpact:
+    """A node hit directly AND by an upstream cascade: the worse status wins;
+    two delays compound into the later finishing time."""
+    if direct.status == cascaded.status == "delayed" and direct.actual_end and cascaded.actual_end:
+        later = max((direct, cascaded), key=lambda i: i.actual_end)
+        return replace(later, delay_minutes=max(direct.delay_minutes, cascaded.delay_minutes))
+    if _STATUS_PRIORITY.get(direct.status, 0) >= _STATUS_PRIORITY.get(cascaded.status, 0):
+        return direct
+    return cascaded
+
+
 class PropagationEngine:
     def propagate(
         self,
@@ -270,7 +281,13 @@ class PropagationEngine:
         disruption_type: str,
         delay_minutes: int | None = None,
         detected_at: datetime | None = None,
+        extra_overrides: dict[str, tuple[str, int | None]] | None = None,
     ) -> PropagationResult:
+        """`extra_overrides` ({node_id: (disruption_type, delay_minutes)}) applies
+        additional simultaneous direct hits - e.g. one storm delaying a flight AND
+        blocking a road transfer. Each such node takes the worse of its own hit
+        and whatever cascades into it from upstream. Omitted, behaviour is the
+        classic single-disruption propagation."""
         node_by_id = {n.id: n for n in nodes}
         if disrupted_node_id not in node_by_id:
             raise ValueError(f"Unknown node id: {disrupted_node_id}")
@@ -305,6 +322,9 @@ class PropagationEngine:
                         if edge.source in impacts
                     ]
                     impact = _worst(outcomes) if outcomes else _healthy_impact(node)
+                if extra_overrides and node_id in extra_overrides:
+                    hit_type, hit_delay = extra_overrides[node_id]
+                    impact = _combine(apply_disruption_override(node, hit_type, hit_delay), impact)
             impacts[node_id] = impact
             sequence.append(node_id)
 

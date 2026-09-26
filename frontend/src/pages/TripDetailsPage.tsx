@@ -56,7 +56,7 @@ export function TripDetailsPage() {
 
   return (
     <div className="animate-fade-in">
-      <PageHero
+      <PageHero crumbs={[{ label: 'My Bookings', route: 'bookings' }, { label: 'Itinerary' }]} showTripBadge
         title={trip.name || 'Your Itinerary'}
         subtitle={<span className="flex flex-wrap items-center gap-2 text-[17px]">{formatDateRange(trip.startDate, trip.endDate)} <span className="pill bg-brand-light text-brand">{tripType(trip)}</span></span>}
         actions={

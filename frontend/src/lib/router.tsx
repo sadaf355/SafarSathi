@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 /** Minimal hash router. Hash URLs keep deep links working on static hosting
  * (GitHub Pages and similar) without server-side rewrites. */
 
-export const ROUTES = ['dashboard', 'bookings', 'live', 'recovery', 'assistant', 'claims', 'settings', 'trip'] as const;
+export const ROUTES = ['dashboard', 'bookings', 'live', 'recovery', 'assistant', 'claims', 'settings', 'trip', 'digital-twin'] as const;
 export type Route = (typeof ROUTES)[number];
 
 export interface RouteParams {

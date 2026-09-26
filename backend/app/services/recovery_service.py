@@ -14,26 +14,25 @@ from app.models.dependency_edge import DependencyEdge
 from app.models.enums import ActivityType, ChangeType, EdgeStatus, NodeStatus, NotificationCategory, NotificationSeverity, RiskLevel, TripStatus
 from app.models.notification import Notification
 from app.models.recovery import RecoveryAction, RecoveryPlan
-from app.providers.mock_activity_provider import MockActivityProvider
-from app.providers.mock_flight_provider import MockFlightProvider
-from app.providers.mock_hotel_provider import MockHotelProvider
-from app.providers.mock_transfer_provider import MockTransferProvider
+from app.providers.factory import build_providers
 from app.repositories.activity_repository import ActivityRepository, NotificationRepository
 from app.repositories.disruption_repository import DisruptionRepository
 from app.repositories.node_repository import NodeRepository
 from app.repositories.recovery_repository import RecoveryRepository
 from app.schemas.recovery import RecoveryChangeOut, RecoveryOptionOut, ScoreBreakdownOut
 from app.schemas.trip import TripOut
+from app.services import email_service, recovery_narrative
 from app.services.converters import to_engine_edge, to_engine_node
 from app.services.trip_service import get_trip, get_trip_out
 
 _propagation_engine = PropagationEngine()
 _itinerary_engine = ItineraryEngine()
+_providers = build_providers()  # PROVIDER_MODE decides mock vs live (see providers/factory.py)
 _recovery_engine = RecoveryEngine(
-    flight_provider=MockFlightProvider(),
-    hotel_provider=MockHotelProvider(),
-    activity_provider=MockActivityProvider(),
-    transfer_provider=MockTransferProvider(),
+    flight_provider=_providers.flight,
+    hotel_provider=_providers.hotel,
+    activity_provider=_providers.activity,
+    transfer_provider=_providers.transfer,
 )
 
 
@@ -90,6 +89,7 @@ def _persist_plan(db: Session, trip_id: str, disruption_id: str, plan: RecoveryP
         explanation=plan.description,
         provider_reason=plan.provider_reason,
         feasible=plan.feasible,
+        data_source=getattr(plan, "data_source", "simulated") or "simulated",
     )
     db.add(db_plan)
     db.flush()
@@ -111,7 +111,7 @@ def _persist_plan(db: Session, trip_id: str, disruption_id: str, plan: RecoveryP
     return db_plan
 
 
-def _plan_to_out(plan: RecoveryPlan) -> RecoveryOptionOut:
+def _plan_to_out(plan: RecoveryPlan, narrative: str | None = None) -> RecoveryOptionOut:
     return RecoveryOptionOut(
         id=plan.id,
         name=plan.name,
@@ -143,6 +143,8 @@ def _plan_to_out(plan: RecoveryPlan) -> RecoveryOptionOut:
         ),
         feasible=plan.feasible,
         provider_reason=plan.provider_reason or (plan.explanation if not plan.feasible else None),
+        data_source=getattr(plan, "data_source", "simulated") or "simulated",
+        narrative=narrative,
     )
 
 
@@ -207,7 +209,8 @@ def generate_recovery_options(db: Session, trip_id: str, traveler_id: str | None
         )
     db.commit()
 
-    return [_plan_to_out(p) for p in db_plans]
+    notes = recovery_narrative.option_notes(db_plans, preferences)
+    return [_plan_to_out(p, notes.get(p.id)) for p in db_plans]
 
 
 def apply_recovery(
@@ -343,5 +346,11 @@ def apply_recovery(
     NotificationRepository(db).add(notification)
 
     db.commit()
+
+    if trip.traveler is not None:
+        email_service.notify_recovery_applied(
+            trip.traveler.email, trip.traveler.name, trip.name, plan.name,
+            plan.bookings_preserved, plan.total_bookings, plan.cost_delta,
+        )
 
     return get_trip_out(db, trip_id), _plan_to_out(plan), activity_event, notification

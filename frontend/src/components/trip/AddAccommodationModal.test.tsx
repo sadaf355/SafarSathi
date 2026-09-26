@@ -20,7 +20,7 @@ vi.mock('@/services/api', async () => {
 
 function baseTrip(overrides: Partial<Trip> = {}): Trip {
   return {
-    id: 'trip-ladakh-2025',
+    id: 'trip-1',
     name: 'Ladakh Expedition 2025',
     travelerName: 'Sarah Chen',
     route: 'DEL → IXL',
@@ -52,7 +52,9 @@ beforeEach(() => {
     disruptionVsComfort: 50,
     recoveryPriorities: { minimizeCost: false, minimizeTime: false, minimizeDisruption: true, maximizeComfort: false },
   });
-  vi.mocked(api.listTrips).mockResolvedValue([]);
+  vi.mocked(api.listTrips).mockResolvedValue([
+    { id: 'trip-1', name: 'Ladakh Expedition 2025', route: 'DEL → IXL', startDate: '2025-06-15', endDate: '2025-06-22', tripValue: 2450, healthScore: 94, status: 'operational', nodeCount: 0, edgeCount: 0 } as api.TripSummary,
+  ]);
 });
 
 async function renderModal(onAdded = vi.fn()) {
@@ -122,7 +124,7 @@ describe('AddAccommodationModal', () => {
 
     await waitFor(() => {
       expect(api.addNode).toHaveBeenCalledWith(
-        'trip-ladakh-2025',
+        'trip-1',
         expect.objectContaining({
           category: 'hotel',
           title: 'Grand Mountain Resort',
@@ -130,6 +132,9 @@ describe('AddAccommodationModal', () => {
           confirmation: 'HTL-9988',
           location: 'Fort Road, Leh',
           cost: 650,
+          // geocoded from the local registry so the booking gets a map pin
+          lat: 34.1526,
+          lng: 77.5771,
         })
       );
       expect(onAdded).toHaveBeenCalled();
