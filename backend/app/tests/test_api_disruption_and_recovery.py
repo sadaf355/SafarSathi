@@ -169,13 +169,20 @@ def test_transfer_failure_returns_honest_empty_options_not_a_500(client):
     'broken' on every re-propagation (see app/engines/propagation_engine.py's
     apply_disruption_override), so it can never be feasible. Generating
     options used to crash with a 500 (ScoreBreakdownOut(**{}) on an unscored,
-    infeasible candidate) instead of returning an honest empty list."""
+    infeasible candidate) instead of returning a single honest, explanatory
+    placeholder (see recovery_service.generate_recovery_options: a bare empty
+    array is ambiguous to the UI, so one infeasible candidate is kept with
+    feasible=False and providerReason explaining why, matching the
+    "Provider unavailable" card RecoveryCenter renders for this case)."""
     resp = client.post("/api/trips/trip-ladakh-2025/disruptions", json={"type": "transfer-failure"})
     assert resp.status_code == 200
 
     resp = client.post("/api/trips/trip-ladakh-2025/recovery-options/generate")
     assert resp.status_code == 200
-    assert resp.json() == []
+    options = resp.json()
+    assert len(options) == 1
+    assert options[0]["feasible"] is False
+    assert options[0]["providerReason"]
 
 
 def test_missed_connection_returns_honest_empty_options_not_a_500(client):
@@ -183,10 +190,14 @@ def test_missed_connection_returns_honest_empty_options_not_a_500(client):
     bookable category) can never be marked non-broken by any simulated
     recovery, so every candidate for the downstream flight it breaks is
     permanently infeasible. Same crash class as the transfer-failure case
-    above - must be an honest empty list, not a 500."""
+    above - must be a single honest, explanatory placeholder (feasible=False
+    with a providerReason), not a 500."""
     resp = client.post("/api/trips/trip-ladakh-2025/disruptions", json={"type": "missed-connection"})
     assert resp.status_code == 200
 
     resp = client.post("/api/trips/trip-ladakh-2025/recovery-options/generate")
     assert resp.status_code == 200
-    assert resp.json() == []
+    options = resp.json()
+    assert len(options) == 1
+    assert options[0]["feasible"] is False
+    assert options[0]["providerReason"]

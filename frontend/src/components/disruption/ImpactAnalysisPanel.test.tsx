@@ -85,7 +85,7 @@ describe('ImpactAnalysisPanel Component', () => {
       phase: 'monitoring',
     } as unknown as MockAppContext);
 
-    const { container } = render(<ImpactAnalysisPanel />);
+    render(<ImpactAnalysisPanel />);
     expect(screen.getByText('No active disruption')).toBeInTheDocument();
   });
 

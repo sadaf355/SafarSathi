@@ -7,13 +7,13 @@ import { cn } from '@/lib/utils';
 import { suggestedPrompts } from '@/data/mockData';
 import * as api from '@/services/api';
 import type { ChatMessage, RecoveryOption } from '@/types';
-import { Sparkles, X, Send, Check, ShieldCheck, ArrowRight, Wallet, Clock } from 'lucide-react';
+import { Sparkles, X, Send, Check, ArrowRight, Wallet, Clock } from 'lucide-react';
 
 interface SathiPageProps { open?: boolean; overlay?: boolean; onClose: () => void; }
 const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 export function SathiPage({ open = true, overlay = false, onClose }: SathiPageProps) {
-  const { tripId, trip, activeDisruption, recoveryOptions, applyRecoveryPlan } = useApp();
+  const { tripId, activeDisruption, recoveryOptions, applyRecoveryPlan } = useApp();
   const { addToast } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([{ id: 'welcome', role: 'assistant', content: `Hi! I’m Sathi. I can explain your journey, identify what is at risk, and propose a recovery when something goes wrong.`, timestamp: now() }]);
   const [input, setInput] = useState(''); const [thinking, setThinking] = useState(false); const [confirm, setConfirm] = useState<RecoveryOption | null>(null);
@@ -36,7 +36,7 @@ export function SathiPage({ open = true, overlay = false, onClose }: SathiPagePr
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-safar-ai/5 text-safar-ai"><Sparkles className="h-4 w-4"/></div><div><div className="text-sm font-bold text-slate-900">Sathi AI</div><div className="text-[11px] text-slate-500">Ask when you need clarity. Act when you need help.</div></div></div>{overlay && <button onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close Sathi"><X className="h-5 w-5"/></button>}</div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 scrollbar-thin">
-        {!overlay && <PageHeader title="Sathi AI" description="Your travel companion for questions, explanations and recovery decisions." crumbs={['Home','Sathi AI']} onNavigate={(page) => onClose()} />}
+        {!overlay && <PageHeader title="Sathi AI" description="Your travel companion for questions, explanations and recovery decisions." crumbs={['Home','Sathi AI']} onNavigate={() => onClose()} />}
         <div className="space-y-4">
           {messages.map(m=><Bubble key={m.id} message={m} />)}
           {thinking && <div className="flex items-center gap-2 text-xs text-slate-500"><span className="h-7 w-7 rounded-lg bg-safar-ai/5"/><span className="inline-flex gap-1 rounded-xl bg-safar-ai/5 px-3 py-2 text-safar-ai"><i className="h-1.5 w-1.5 animate-typing rounded-full bg-safar-ai"/><i className="h-1.5 w-1.5 animate-typing rounded-full bg-safar-ai [animation-delay:150ms]"/><i className="h-1.5 w-1.5 animate-typing rounded-full bg-safar-ai [animation-delay:300ms]"/></span></div>}

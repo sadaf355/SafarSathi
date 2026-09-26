@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Modal } from '@/components/ui/Modal';
+import { useToast } from '@/components/ui/ToastProvider';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/store/AppContext';
 import { disruptionTypes } from '@/data/mockData';
@@ -16,6 +17,7 @@ import {
   ArrowRight,
   Zap,
   Loader2,
+  Mic,
 } from 'lucide-react';
 import type { DisruptionType } from '@/types';
 
@@ -31,6 +33,27 @@ const iconMap: Record<string, typeof Clock> = {
 
 const DELAY_BASED_TYPES = new Set(['flight-delay', 'activity-delay']);
 
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: { results: { [i: number]: { [i: number]: { transcript: string } } } }) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+interface SpeechRecognitionWindow extends Window {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+}
+
+const SpeechRecognitionCtor: SpeechRecognitionConstructor | undefined =
+  typeof window !== 'undefined'
+    ? (window as SpeechRecognitionWindow).SpeechRecognition ?? (window as SpeechRecognitionWindow).webkitSpeechRecognition
+    : undefined;
+
 interface DisruptionModalProps {
   open: boolean;
   onClose: () => void;
@@ -38,12 +61,16 @@ interface DisruptionModalProps {
 
 export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   const { triggerDisruption, tripId, isBusy, trip } = useApp();
+  const { addToast } = useToast();
   const [selected, setSelected] = useState<DisruptionType['id']>('flight-delay');
   const [delayHours, setDelayHours] = useState(3);
   const [preview, setPreview] = useState<api.PropagationResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [smartText, setSmartText] = useState('');
   const [understood, setUnderstood] = useState<{ label: string; nodeId?: string } | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   const delayMinutes = DELAY_BASED_TYPES.has(selected) ? delayHours * 60 : undefined;
 
@@ -68,17 +95,48 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   }, [open, tripId, selected, delayMinutes]);
 
 
-  const analyzeSmartReport = () => {
-    const text = smartText.toLowerCase();
-    const hoursMatch = text.match(/(\d+(?:\.5)?)\s*(?:hour|hours|hr|hrs|h)/);
-    const minutesMatch = text.match(/(\d+)\s*(?:minute|minutes|min|mins|m)/);
-    const minutes = hoursMatch ? Math.round(Number(hoursMatch[1]) * 60) : minutesMatch ? Number(minutesMatch[1]) : 180;
-    const node = trip.nodes.find((n) => text.includes(n.title.toLowerCase()) || text.includes(n.label.toLowerCase()) || text.includes(n.provider.toLowerCase()));
-    const isWeather = /storm|snow|fog|flood|cyclone|weather|monsoon|blizzard/.test(text);
-    const type = isWeather ? 'weather-disruption' : text.includes('cancel') ? 'flight-cancellation' : text.includes('miss') && text.includes('connection') ? 'missed-connection' : text.includes('hotel') ? 'hotel-conflict' : 'flight-delay';
-    setSelected(type as DisruptionType['id']);
-    if (DELAY_BASED_TYPES.has(type)) setDelayHours(Math.max(1, Math.min(6, Math.round(minutes / 60))));
-    setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${Math.round(minutes/60)}h` : 'Disruption detected'}` : `${type.replaceAll('-', ' ')} · ${Math.round(minutes/60)}h`, nodeId: node?.id });
+  const analyzeSmartReport = async () => {
+    if (!smartText.trim()) return;
+    setAnalyzing(true);
+    try {
+      const result = await api.extractDisruptionReport(
+        tripId,
+        smartText,
+        trip.nodes.map((n) => ({ id: n.id, title: n.title, label: n.label, provider: n.provider, category: n.category }))
+      );
+      const type = result.type;
+      const minutes = result.delayMinutes ?? 180;
+      const node = result.nodeId ? trip.nodes.find((n) => n.id === result.nodeId) : undefined;
+      setSelected(type as DisruptionType['id']);
+      if (DELAY_BASED_TYPES.has(type)) setDelayHours(Math.max(1, Math.min(6, Math.round(minutes / 60))));
+      setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${Math.round(minutes/60)}h` : 'Disruption detected'}` : `${type.replaceAll('-', ' ')} · ${Math.round(minutes/60)}h`, nodeId: node?.id });
+    } catch {
+      addToast('error', 'Could not analyze report', 'Please try again or use the manual options below.');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const toggleListening = () => {
+    if (!SpeechRecognitionCtor) return;
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const recognition = new SpeechRecognitionCtor();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-IN';
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript as string;
+      setSmartText((prev) => (prev.trim() ? `${prev} ${transcript}` : transcript));
+      setUnderstood(null);
+    };
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => setListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
   };
 
   const handleTrigger = async () => {
@@ -96,7 +154,19 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
           <div className="mt-1 text-sm font-semibold text-slate-900">What happened?</div>
           <div className="mt-3 flex gap-2">
             <textarea value={smartText} onChange={(e)=>{setSmartText(e.target.value);setUnderstood(null)}} rows={2} placeholder="e.g. My Mumbai to Delhi flight is delayed by 3 hours." className="min-h-20 flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-safar-blue focus:outline-none"/>
-            <button onClick={analyzeSmartReport} disabled={!smartText.trim()} className="self-end rounded-xl bg-safar-blue px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Analyze</button>
+            {SpeechRecognitionCtor && (
+              <button
+                type="button"
+                onClick={toggleListening}
+                className={cn(
+                  'self-end flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-white',
+                  listening ? 'bg-safar-broken animate-pulse-soft' : 'bg-safar-blue'
+                )}
+              >
+                <Mic className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button onClick={analyzeSmartReport} disabled={!smartText.trim() || analyzing} className="self-end flex items-center gap-1.5 rounded-xl bg-safar-blue px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">{analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Analyze'}</button>
           </div>
           {understood && <div className="mt-3 rounded-lg border border-safar-safe/20 bg-white p-3 text-xs"><div className="font-semibold text-slate-900">I understood</div><div className="mt-1 text-slate-600">{understood.label}</div><div className="mt-2 text-[10px] text-slate-500">Review the details below before confirming.</div></div>}
         </div>
