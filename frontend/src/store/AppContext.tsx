@@ -15,6 +15,26 @@ import { ApiError } from '@/services/api';
 export type AppPhase = 'idle' | 'disrupted' | 'analyzing' | 'recovering' | 'recovered';
 
 const DEFAULT_TRIP_ID = 'trip-ladakh-2025';
+const DEMO_TRIP_ID = 'demo-golden-triangle';
+const tripKey = () => `safarsathi.tripId.${api.getDataMode()}`;
+
+function initialTripId(): string {
+  try {
+    const stored = localStorage.getItem(tripKey());
+    if (stored) return stored;
+  } catch {
+    /* storage unavailable */
+  }
+  return api.getDataMode() === 'demo' ? DEMO_TRIP_ID : DEFAULT_TRIP_ID;
+}
+
+function rememberTripId(tripId: string) {
+  try {
+    localStorage.setItem(tripKey(), tripId);
+  } catch {
+    /* storage unavailable - selection lasts for this session only */
+  }
+}
 const CASCADE_STEP_MS = 450;
 
 // A neutral, non-misleading placeholder - never real (or real-looking) trip
@@ -74,6 +94,7 @@ type Action =
   | { type: 'SWITCH_TRIP'; tripId: string }
   | { type: 'SET_BUSY'; busy: boolean }
   | { type: 'DISRUPTION_STARTED'; disruption: Disruption }
+  | { type: 'DISRUPTION_RESTORED'; disruption: Disruption; options: RecoveryOption[] }
   | { type: 'NODE_EDGE_UPDATE'; nodeUpdates: { nodeId: string; status: string; reason?: string | null }[]; edgeUpdates: { edgeId: string; status: string; animated?: boolean }[] }
   | { type: 'SET_PHASE'; phase: AppPhase }
   | { type: 'SET_RECOVERY_OPTIONS'; options: RecoveryOption[] }
@@ -170,6 +191,8 @@ function reducer(state: AppState, action: Action): AppState {
         appliedRecovery: null,
         recoveryOptions: [],
       };
+    case 'DISRUPTION_RESTORED':
+      return { ...state, activeDisruption: action.disruption, recoveryOptions: action.options, phase: action.options.length ? 'recovering' : 'disrupted' };
     case 'NODE_EDGE_UPDATE': {
       const { newNodes, newEdges } = applyUpdates(state.trip.nodes, state.trip.edges, action.nodeUpdates, action.edgeUpdates);
       return { ...state, trip: { ...state.trip, nodes: newNodes, edges: newEdges } };
@@ -266,7 +289,7 @@ interface AppContextValue extends AppState {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, initialState, (s) => ({ ...s, tripId: initialTripId() }));
 
   // Single timer registry shared by the cascade animation, whether it was
   // started by a manual "Simulate Disruption" or by Demo Mode - there is only
@@ -308,6 +331,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         api.getPreferences(state.tripId).catch(() => ({ ...defaultPreferences })),
       ]);
       dispatch({ type: 'LOAD_SUCCESS', trip, activityLog, notifications, preferences });
+      rememberTripId(trip.id);
+      if (trip.status === 'disrupted' || trip.status === 'recovering') {
+        // A disruption from an earlier session is still active: restore its
+        // details and recovery options so every page can act on it right away.
+        try {
+          const [propagation, options] = await Promise.all([api.repropagate(state.tripId), api.generateRecoveryOptions(state.tripId)]);
+          dispatch({ type: 'DISRUPTION_RESTORED', disruption: propagation.disruption, options });
+        } catch {
+          /* non-fatal: the trip itself loaded; recovery can be regenerated from the Recovery page */
+        }
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         // state.tripId is never persisted (no localStorage) - a fresh page
