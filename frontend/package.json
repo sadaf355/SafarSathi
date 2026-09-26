@@ -13,13 +13,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
-<<<<<<< HEAD
     "@react-three/drei": "^9.114.0",
     "@react-three/fiber": "^8.17.10",
     "framer-motion": "^13.2.0",
     "leaflet": "^1.9.4",
-=======
->>>>>>> origin/shreya
     "lucide-react": "^0.446.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
