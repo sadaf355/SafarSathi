@@ -1,12 +1,9 @@
 import type { DigitalTwinSimulation, TwinStateSummary } from '@/services/api';
-import type { NodeStatus } from '@/types';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatINR } from '@/lib/journey';
+import { asStatus } from '@/lib/digitalTwin';
 import { cn } from '@/lib/utils';
 import { ArrowRight, CloudLightning, Radio, ShieldCheck } from 'lucide-react';
-
-const STATUSES: NodeStatus[] = ['healthy', 'at-risk', 'broken', 'delayed', 'cancelled', 'recovered'];
-export const asStatus = (s: string): NodeStatus => (STATUSES.includes(s as NodeStatus) ? (s as NodeStatus) : 'healthy');
 
 function StateColumn({ title, icon: Icon, state, tone }: { title: string; icon: typeof Radio; state: TwinStateSummary; tone: 'live' | 'twin' }) {
   const healthTone = state.healthScore >= 80 ? 'text-safe' : state.healthScore >= 60 ? 'text-risk-dark' : 'text-danger';
