@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { @apply border-slate-200; }
+  html { font-feature-settings: 'cv11', 'ss01'; font-variation-settings: 'opsz' 32; }
+  body { @apply bg-slate-50 text-slate-900 font-sans antialiased; background-image: radial-gradient(ellipse 80% 45% at 50% -20%, rgba(56,189,248,.10), transparent); background-attachment: fixed; }
+  ::selection { @apply bg-safar-sky/20 text-slate-900; }
+  :focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; border-radius: 6px; }
+}
+@layer utilities {
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: rgba(100,116,139,.35) transparent; }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background-color: rgba(100,116,139,.3); border-radius: 9999px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover { background-color: rgba(100,116,139,.5); }
+  .text-balance { text-wrap: balance; }
+  .glass { @apply bg-white/90 backdrop-blur-xl border border-slate-200 shadow-card; }
+  .glass-strong { @apply bg-white border border-slate-200 shadow-card; }
+  .ai-surface { @apply border border-safar-ai/20 bg-safar-ai/5; }
+}
+.react-flow { --bg-color: transparent; background: transparent; }
+.react-flow__attribution { display: none; }
+.react-flow__background { pointer-events: none; }
+.react-flow__controls { background: rgba(255,255,255,.96) !important; border: 1px solid rgba(15,31,61,.08) !important; border-radius: 10px !important; backdrop-filter: blur(12px); box-shadow: 0 2px 10px rgba(15,31,61,.08) !important; overflow: hidden; }
+.react-flow__controls-button { background: transparent !important; border-bottom: 1px solid rgba(15,31,61,.06) !important; fill: #64748b !important; }
+.react-flow__controls-button:hover { background: rgba(37,99,235,.05) !important; fill: #2563eb !important; }
+.react-flow__minimap { background: rgba(255,255,255,.96) !important; border: 1px solid rgba(15,31,61,.08) !important; border-radius: 10px !important; }
+.react-flow__edge-path { transition: stroke .5s ease, stroke-width .3s ease; }
+.react-flow__handle { opacity: 0; width: 1px; height: 1px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
