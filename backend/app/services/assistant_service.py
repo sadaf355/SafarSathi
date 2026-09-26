@@ -20,7 +20,7 @@ from app.config import get_settings
 from app.models.enums import DisruptionType
 from app.repositories.disruption_repository import DisruptionRepository
 from app.repositories.recovery_repository import RecoveryRepository
-from app.schemas.assistant import AssistantReference, AssistantResponse
+from app.schemas.assistant import AssistantReference, AssistantResponse, DisruptionExtractNode, DisruptionExtractResponse
 from app.services import recovery_service
 from app.services.risk_service import get_risk_analysis
 from app.services.trip_service import get_trip_out
