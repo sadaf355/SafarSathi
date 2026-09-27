@@ -396,3 +396,34 @@ Frontend will be available at `http://localhost:5173`. Click **"Continue as Demo
 - **Author**: daanialmirza5
 - **Contact**: daanialmirza@gmail.com
 - **Project**: TripRescue — HackCelestial Final Release
+
+## Live Travel Data
+
+Safar Sathi can plan and monitor trips with real provider data. Everything below is additive: existing trips, simulation, demo mode and recovery work exactly as before.
+
+| Data | Provider | Endpoints |
+| --- | --- | --- |
+| Flights (status, delay, live position, altitude, speed, heading) | [Aviationstack](https://aviationstack.com/) | `GET /api/live/flights?flightNumber=&dep=&arr=`, `GET /api/live/flights/{flightNumber}` |
+| Indian trains (running status, delay, current/next station, platform, route) | [RailRadar](https://railradar.in/docs/live-train-status) | `GET /api/live/trains/{trainNumber}`, `GET /api/live/trains/between?from=&to=&date=` |
+| Hotels and tourist places | [OpenStreetMap](https://www.openstreetmap.org/) via [Nominatim](https://nominatim.org/) (default, free, 1 req/s) or [Overpass](https://dev.overpass-api.de/overpass-doc/en/) (`PLACES_PROVIDER=overpass`) | `GET /api/places/hotels`, `GET /api/places/attractions` |
+| Events (India) | [Ticketmaster Discovery API](https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/) | `GET /api/events` |
+| Destinations | Curated catalog of 32 Indian destinations (+ Nominatim for anything else) | `GET /api/destinations?query=` |
+| Add to trip / monitoring | — | `POST /api/trips/{id}/external-items`, `GET /api/trips/{id}/external-items`, `GET /api/live/trips/{id}/tracked`, `GET /api/live/health` |
+
+**Environment variables** (backend only, in `backend/.env`; never `VITE_*`, so keys never reach the browser):
+
+```text
+AVIATIONSTACK_API_KEY=
+RAILRADAR_API_KEY=
+TICKETMASTER_API_KEY=
+```
+
+Hotels/places need no key: `PLACES_PROVIDER=nominatim` (default) uses OpenStreetMap's Nominatim search, throttled to its 1 request/second policy; `PLACES_PROVIDER=overpass` with `OVERPASS_URL` uses an Overpass instance instead.
+
+**Live vs simulation.** Provider data is labelled `● LIVE · <provider> · Updated …`; OpenStreetMap and Ticketmaster results show their source; simulated data is always labelled `● SIMULATION`. When a provider fails or its key is missing, the API returns a clear message (e.g. "Live provider authentication is not configured.", "Live provider request limit reached. Please try again shortly.") — never simulated data. The offline demo has no live feed and says so. On the Live Transport page a tracked flight's real delay can be combined with a simulated extra delay (e.g. real +12 min + simulated +120 min = +132 min) and run through the existing simulation and recovery engine; the live record itself is never modified.
+
+**Adding to a trip.** Explore India and Live Transport results have one-tap *Add to Trip*. Items become ordinary itinerary bookings (flights → flight, trains → transfer, hotels → hotel, places/events → activity), join the dependency graph, and are tracked by `source` + provider `externalId` so the same item can't be added twice. Events use their own date (2 h reserved when no end time is announced), flights/trains their timetable, hotels the chosen check-in/out dates, places the chosen trip day. Nothing is booked or paid for and no prices are shown.
+
+**Caching and rate limits.** Live flights/trains are cached for 60 s (and the Live View refreshes at most once a minute), train timetables for 30 min, events for 10 min, hotels/places for 6 h. Only what the traveler searches is requested; place searches are always bounded by a radius (max 20 km) and a result limit. Provider 401/404/429/5xx responses map to friendly messages, and API keys are redacted from logs.
+
+**Limitations.** Coverage is whatever each provider returns: Ticketmaster lists only part of India's events; OpenStreetMap has no prices, availability or reviews; RailRadar's position is the reported current station, not GPS; free Aviationstack plans limit request volume. The existing disruption engine models train disruptions on transfer bookings as a failed train, so live-baseline *delay* simulation is available for flights.
