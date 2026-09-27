@@ -5,6 +5,7 @@ import { DestinationImage } from '@/components/travel/DestinationImage';
 import { sceneImages } from '@/lib/destinationImages';
 import { durationBetween, formatDay, formatINR, formatMinutes, formatTime } from '@/lib/journey';
 import { optionBadge, whyBullets, type OptionRoute } from '@/lib/recovery';
+import { toConciseBullets } from '@/lib/concise';
 import { riskTone, toneClasses } from '@/lib/status';
 import type { RecoveryOption } from '@/types';
 import { BadgePercent, Car, CheckCircle2, ChevronDown, Crown, Hotel, Lightbulb, Plane, ShieldCheck, Sparkles, TrainFront, Zap } from 'lucide-react';
@@ -109,11 +110,13 @@ export function RecoveryPlanCard({ option, route, rank, selected, isFastest, isC
           <span className="flex items-center gap-2 text-sm font-bold text-ink"><Lightbulb className="h-4 w-4 text-risk" />Why this plan?</span>
           <ChevronDown className={cn('h-4 w-4 text-ink-muted transition', whyOpen && 'rotate-180')} />
         </button>
-        {whyOpen && option.narrative && <p className="px-4 pb-2 text-sm leading-relaxed text-ink-soft">{option.narrative}</p>}
         {whyOpen && (
-          <ul className="space-y-2 px-4 pb-4">
-            {whyBullets(option).map((b) => (
-              <li key={b} className="flex gap-2 text-sm text-ink-soft"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-safe" />{b}</li>
+          <ul className="space-y-1.5 px-4 pb-4">
+            {(option.narrative ? toConciseBullets(option.narrative, 2) : whyBullets(option)).slice(0, 3).map((b) => (
+              <li key={b} className="flex items-start gap-2 text-xs text-ink-soft">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-safe" />
+                <span>{b}</span>
+              </li>
             ))}
           </ul>
         )}

@@ -55,6 +55,7 @@ export const sceneImages = {
   transfer: scene('transfer'),
   hotel: scene('hotel'),
   heroTajMahal: scene('hero-taj-mahal'),
+  heroIndiaGate: scene('hero-india-gate'),
   sidebarCoast: scene('sidebar-coast'),
   bannerMountains: scene('banner-mountains'),
 } as const;

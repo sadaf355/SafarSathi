@@ -4,7 +4,7 @@ import { DEMO_UNAVAILABLE_MESSAGE, useAuth } from '@/store/AuthContext';
 import { useToast } from '@/components/ui/ToastProvider';
 import { ApiError } from '@/services/api';
 import { Logo, ScriptTagline } from '@/components/brand/Logo';
-import { ItineraryBoard } from '@/components/brand/ItineraryArt';
+import { sceneImages } from '@/lib/destinationImages';
 import { cn } from '@/lib/utils';
 import { PASSWORD_MAX_LENGTH, PASSWORD_RULES, isStrongPassword } from '@/lib/password';
 
@@ -37,16 +37,13 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
 
   return (
     <div className="flex min-h-screen bg-canvas">
-      <div className="relative hidden flex-1 flex-col overflow-hidden bg-gradient-to-br from-[#DCEBFF] via-[#EEF5FF] to-[#E3F6FC] px-12 py-10 lg:flex">
-        <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand/10 blur-3xl" aria-hidden="true" />
-        <div className="pointer-events-none absolute -bottom-32 right-0 h-[28rem] w-[28rem] rounded-full bg-brand-cyan/15 blur-3xl" aria-hidden="true" />
-        <div className="relative flex flex-1 items-center justify-center">
-          <ItineraryBoard className="w-full max-w-[460px]" />
-        </div>
-        <div className="relative mt-10 max-w-lg">
-          <h1 className="font-display text-4xl font-extrabold leading-tight text-ink">Your journey, always with you.</h1>
-          <p className="mt-3 text-ink-soft">Safar Sathi connects every booking in your trip, spots disruptions the moment they happen, and recovers the whole journey — not just one leg.</p>
-          <ScriptTagline lines={['Same Destinations.', 'Fewer Disruptions.']} className="mt-5 text-3xl text-brand" />
+      <div className="relative hidden flex-1 overflow-hidden lg:block">
+        <img src={sceneImages.heroIndiaGate} alt="India Gate at sunset" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 p-12 text-white">
+          <h1 className="max-w-lg font-display text-4xl font-extrabold leading-tight">Your journey, always with you.</h1>
+          <p className="mt-3 max-w-md text-white/85">Safar Sathi monitors every leg of your trip, detects disruptions, and prepares recovery options before you have to ask.</p>
+          <ScriptTagline lines={['Same Destinations.', 'Fewer Disruptions.']} className="mt-6 text-3xl text-white/90" />
         </div>
       </div>
       <div className="flex w-full items-center justify-center px-4 py-10 lg:w-[520px]">

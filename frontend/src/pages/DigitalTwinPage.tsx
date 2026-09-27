@@ -11,6 +11,7 @@ import { SCENARIO_PRESETS, asStatus } from '@/lib/digitalTwin';
 import { SocialSignalsTicker } from '@/components/digitaltwin/SocialSignalsTicker';
 import { DigitalTwinMapOverlay, type TwinMapPoint } from '@/components/map/DigitalTwinMapOverlay';
 import { formatINR } from '@/lib/journey';
+import { toConciseBullets } from '@/lib/concise';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, BrainCircuit, CheckCircle2, CloudSun, Layers, Loader2, ShieldAlert, ShieldCheck, Sparkles } from 'lucide-react';
 
@@ -142,11 +143,18 @@ export function DigitalTwinPage() {
                     {sim.explanationSource === 'nugen' ? `Nugen · ${sim.model ?? 'domain model'}` : 'Heuristic reasoning engine'}
                   </span>
                 </div>
-                <p className="mt-3 text-[15px] leading-relaxed text-ink-soft">{sim.explanation}</p>
+                <div className="mt-3 space-y-1.5">
+                  {toConciseBullets(sim.explanation, 3).map((line) => (
+                    <div key={line} className="flex items-start gap-2 text-[14px] leading-snug text-ink-soft">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ai" />
+                      <span>{line}</span>
+                    </div>
+                  ))}
+                </div>
                 {sim.mitigation.length > 0 && (
-                  <ul className="mt-4 space-y-2">
-                    {sim.mitigation.map((tip) => (
-                      <li key={tip} className="flex gap-2 text-sm text-ink-soft"><Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />{tip}</li>
+                  <ul className="mt-3 space-y-1.5 border-t border-line/60 pt-3">
+                    {sim.mitigation.slice(0, 2).map((tip) => (
+                      <li key={tip} className="flex gap-2 text-xs font-medium text-ink-soft"><Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />{tip}</li>
                     ))}
                   </ul>
                 )}

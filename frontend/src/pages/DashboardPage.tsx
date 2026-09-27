@@ -102,14 +102,14 @@ export function DashboardPage() {
                 <JourneyRoute journey={journey} onSelectStop={() => navigate('trip')} />
               </div>
               {isDisrupted && activeDisruption && (
-                <div className="ai-surface mt-5 p-4" aria-live="polite">
+                <div className="ai-surface mt-5 p-3.5" aria-live="polite">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-safar-ai">✦ SAFARSATHI INSIGHT</div>
-                  <p className="mt-1.5 text-sm leading-6 text-ink-soft">
-                    {activeDisruption.label} affects {activeDisruption.downstreamImpact} downstream booking{activeDisruption.downstreamImpact === 1 ? '' : 's'}, with {formatINR(activeDisruption.financialExposure)} at risk.{' '}
-                    {readyOptions > 0
-                      ? `${readyOptions} recovery option${readyOptions === 1 ? ' is' : 's are'} ranked and ready to review.`
-                      : 'Safar Sathi is preparing recovery options.'}
-                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-soft">
+                    <span><b>{activeDisruption.label}</b> · {activeDisruption.downstreamImpact} affected ({formatINR(activeDisruption.financialExposure)} at risk)</span>
+                    <span className="font-semibold text-brand">
+                      {readyOptions > 0 ? `${readyOptions} recovery option${readyOptions === 1 ? '' : 's'} ready` : 'Preparing recovery options…'}
+                    </span>
+                  </div>
                 </div>
               )}
             </section>
