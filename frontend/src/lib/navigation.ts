@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, CalendarDays, CloudLightning, FileText, Home, MessageSquareText, Radio, Settings, Sparkles } from 'lucide-react';
+import { BriefcaseBusiness, CalendarDays, CloudLightning, Compass, FileText, Home, MessageSquareText, Navigation, Radio, Settings, Sparkles } from 'lucide-react';
 import type { Route } from '@/lib/router';
 
 export interface NavItem { id: Route; label: string; icon: typeof Home }
@@ -14,6 +14,8 @@ export const primaryNav: NavItem[] = [
 
 export const secondaryNav: NavItem[] = [
   { id: 'trip', label: 'Itinerary', icon: CalendarDays },
+  { id: 'explore', label: 'Explore India', icon: Compass },
+  { id: 'transport', label: 'Live Transport', icon: Navigation },
   { id: 'claims', label: 'Claims', icon: FileText },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];

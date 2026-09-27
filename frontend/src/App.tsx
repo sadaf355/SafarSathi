@@ -19,6 +19,8 @@ import { ClaimsPage } from '@/pages/ClaimsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { TripDetailsPage } from '@/pages/TripDetailsPage';
 import { DigitalTwinPage } from '@/pages/DigitalTwinPage';
+import { ExplorePage } from '@/pages/ExplorePage';
+import { LiveTransportPage } from '@/pages/LiveTransportPage';
 import { BriefcaseBusiness, WifiOff } from 'lucide-react';
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -119,6 +121,8 @@ function AppContent() {
               {route === 'settings' && <SettingsPage />}
               {route === 'trip' && <TripDetailsPage />}
               {route === 'digital-twin' && <DigitalTwinPage />}
+              {route === 'explore' && <ExplorePage />}
+              {route === 'transport' && <LiveTransportPage />}
             </div>
           )}
         </div>

@@ -635,6 +635,240 @@ export async function applyDigitalTwin(tripId: string, simulationId: string, opt
   return post<DigitalTwinApplyResult>(`/api/trips/${tripId}/digital-twin/apply`, { simulationId, optionId });
 }
 
+// ---- Live travel data (Aviationstack, RailRadar, OpenStreetMap, Ticketmaster) ---------------
+// Backend-only integrations: API keys never reach the browser. The offline demo
+// has no live feed, and simulated data is never presented as live, so these
+// calls fail with a clear message in demo mode instead of returning fakes.
+
+export type TransportStatus = 'scheduled' | 'boarding' | 'departed' | 'en_route' | 'arrived' | 'delayed' | 'cancelled' | 'diverted' | 'unknown';
+export type ExternalSource = 'aviationstack' | 'railradar' | 'openstreetmap' | 'ticketmaster';
+export type ExternalKind = 'flight' | 'train' | 'hotel' | 'attraction' | 'event';
+
+export interface PlaceRef { code: string | null; name: string; latitude: number | null; longitude: number | null }
+export interface GeoPoint { latitude: number; longitude: number }
+export interface RouteStop { code: string; name: string; latitude: number | null; longitude: number | null }
+
+export interface LiveTransport {
+  id: string;
+  mode: 'flight' | 'train';
+  provider: 'aviationstack' | 'railradar';
+  source: ExternalSource;
+  externalId: string;
+  dataSource: 'live' | 'simulation';
+  number: string | null;
+  name: string | null;
+  operator: string | null;
+  origin: PlaceRef | null;
+  destination: PlaceRef | null;
+  status: TransportStatus;
+  delayMinutes: number | null;
+  currentLocation: GeoPoint | null;
+  currentLocationName: string | null;
+  speedKmh: number | null;
+  altitudeMeters: number | null;
+  heading: number | null;
+  isOnGround: boolean | null;
+  aircraft: string | null;
+  scheduledDeparture: string | null;
+  estimatedDeparture: string | null;
+  actualDeparture: string | null;
+  scheduledArrival: string | null;
+  estimatedArrival: string | null;
+  actualArrival: string | null;
+  previousStop: PlaceRef | null;
+  nextStop: PlaceRef | null;
+  platform: string | null;
+  route: RouteStop[];
+  journeyDate: string | null;
+  notices: string[];
+  lastUpdatedAt: string;
+  retrievedAt: string;
+}
+
+export interface TrainBetween {
+  id: string;
+  source: 'railradar';
+  externalId: string;
+  dataSource: 'live';
+  number: string;
+  name: string;
+  trainType: string | null;
+  origin: PlaceRef;
+  destination: PlaceRef;
+  departureTime: string | null;
+  arrivalTime: string | null;
+  arrivalDayOffset: number;
+  durationMinutes: number | null;
+  runDays: string[];
+  liveDelayMinutes: number | null;
+  livePlatform: string | null;
+}
+
+export interface TrainsBetweenResult { origin: PlaceRef; destination: PlaceRef; date: string | null; trains: TrainBetween[]; retrievedAt: string }
+
+export interface Hotel {
+  id: string;
+  type: 'hotel';
+  source: 'openstreetmap';
+  externalId: string;
+  name: string;
+  category: string;
+  latitude: number;
+  longitude: number;
+  address: string | null;
+  city: string | null;
+  phone: string | null;
+  website: string | null;
+  stars: number | null;
+  sourceUrl: string;
+  lastUpdatedAt: string;
+}
+
+export interface Attraction {
+  id: string;
+  type: 'attraction';
+  source: 'openstreetmap';
+  externalId: string;
+  name: string;
+  category: string;
+  latitude: number;
+  longitude: number;
+  address: string | null;
+  city: string | null;
+  website: string | null;
+  sourceUrl: string;
+  lastUpdatedAt: string;
+}
+
+export interface TravelEvent {
+  id: string;
+  type: 'event';
+  source: 'ticketmaster';
+  externalId: string;
+  name: string;
+  venue: string | null;
+  city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  startTime: string | null;
+  startDate: string | null;
+  endTime: string | null;
+  category: string | null;
+  imageUrl: string | null;
+  ticketUrl: string | null;
+  status: string | null;
+  lastUpdatedAt: string;
+}
+
+export interface Destination {
+  id: string;
+  name: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+  airportCode: string | null;
+  stationCode: string | null;
+  regionMatch: string | null;
+  source: 'catalog' | 'nominatim';
+}
+
+export interface ProviderHealth { provider: string; available: boolean; configured: boolean; detail: string }
+export interface LiveHealth { flights: ProviderHealth; trains: ProviderHealth; places: ProviderHealth; events: ProviderHealth }
+
+export interface ExternalItem {
+  kind: ExternalKind;
+  source: ExternalSource;
+  externalId: string;
+  title: string;
+  operator?: string | null;
+  location?: string | null;
+  originCode?: string | null;
+  destinationCode?: string | null;
+  scheduledStart: string;
+  scheduledEnd: string;
+  lat?: number | null;
+  lng?: number | null;
+}
+
+export interface ExternalItemLink { nodeId: string; kind: ExternalKind; source: ExternalSource; externalId: string }
+export interface ExternalItemAddResult { trip: Trip; nodeId: string; alreadyAdded: boolean; link: ExternalItemLink }
+export interface TrackedTransport { nodeId: string; kind: 'flight' | 'train'; source: ExternalSource; externalId: string; live: LiveTransport | null; error: string | null }
+
+export const LIVE_DEMO_MESSAGE = 'Live travel data needs the live backend. The offline demo never shows simulated data as live.';
+
+function liveOnly() {
+  if (isDemo()) throw new ApiError(LIVE_DEMO_MESSAGE, 503);
+}
+
+function query(params: Record<string, string | number | null | undefined>): string {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') q.set(k, String(v)); });
+  const s = q.toString();
+  return s ? `?${s}` : '';
+}
+
+export async function getLiveHealth(): Promise<LiveHealth> {
+  liveOnly();
+  return get<LiveHealth>('/api/live/health');
+}
+
+export async function searchLiveFlights(params: { flightNumber?: string; dep?: string; arr?: string; limit?: number }): Promise<LiveTransport[]> {
+  liveOnly();
+  return get<LiveTransport[]>(`/api/live/flights${query(params)}`);
+}
+
+export async function getLiveFlight(flightNumber: string, date?: string): Promise<LiveTransport> {
+  liveOnly();
+  return get<LiveTransport>(`/api/live/flights/${encodeURIComponent(flightNumber)}${query({ date })}`);
+}
+
+export async function getLiveTrain(trainNumber: string, date?: string): Promise<LiveTransport> {
+  liveOnly();
+  return get<LiveTransport>(`/api/live/trains/${encodeURIComponent(trainNumber)}${query({ date })}`);
+}
+
+export async function getTrainsBetween(from: string, to: string, date?: string): Promise<TrainsBetweenResult> {
+  liveOnly();
+  return get<TrainsBetweenResult>(`/api/live/trains/between${query({ from, to, date })}`);
+}
+
+export async function searchDestinations(q?: string): Promise<Destination[]> {
+  liveOnly();
+  return get<Destination[]>(`/api/destinations${query({ query: q })}`);
+}
+
+export interface PlaceSearch { city?: string; latitude?: number; longitude?: number; radius?: number; query?: string; limit?: number }
+
+export async function searchHotels(params: PlaceSearch): Promise<Hotel[]> {
+  liveOnly();
+  return get<Hotel[]>(`/api/places/hotels${query({ ...params })}`);
+}
+
+export async function searchAttractions(params: PlaceSearch & { category?: string }): Promise<Attraction[]> {
+  liveOnly();
+  return get<Attraction[]>(`/api/places/attractions${query({ ...params })}`);
+}
+
+export async function searchEvents(params: { city?: string; latitude?: number; longitude?: number; radius?: number; startDate?: string; endDate?: string; category?: string; keyword?: string; limit?: number }): Promise<TravelEvent[]> {
+  liveOnly();
+  return get<TravelEvent[]>(`/api/events${query({ ...params })}`);
+}
+
+export async function listExternalItems(tripId: string): Promise<ExternalItemLink[]> {
+  liveOnly();
+  return get<ExternalItemLink[]>(`/api/trips/${tripId}/external-items`);
+}
+
+export async function addExternalItem(tripId: string, item: ExternalItem): Promise<ExternalItemAddResult> {
+  liveOnly();
+  return post<ExternalItemAddResult>(`/api/trips/${tripId}/external-items`, item);
+}
+
+export async function getTrackedTransport(tripId: string): Promise<TrackedTransport[]> {
+  liveOnly();
+  return get<TrackedTransport[]>(`/api/live/trips/${tripId}/tracked`);
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     await get<{ status: string }>('/api/health');
