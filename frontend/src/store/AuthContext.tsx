@@ -7,14 +7,13 @@ export type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
 
 const DATA_MODE_KEY = 'safarsathi.dataMode';
 /** Shown when the backend runs without seeded demo data (SEED_DEMO_DATA off). */
-export const DEMO_UNAVAILABLE_MESSAGE = 'Production mode active — please create a new account or use Explore Offline Demo';
+export const DEMO_UNAVAILABLE_MESSAGE = 'The demo traveler is not available on this server. Please create a new account or sign in.';
 
+/** The offline demo was retired, so every session is live. Clears the mode a
+ * browser may still have stored from it, so it signs in normally. */
 function readStoredMode(): api.DataMode {
-  try {
-    return localStorage.getItem(DATA_MODE_KEY) === 'demo' ? 'demo' : 'live';
-  } catch {
-    return 'live';
-  }
+  storeMode('live');
+  return 'live';
 }
 
 function storeMode(mode: api.DataMode) {
@@ -41,7 +40,6 @@ interface AuthContextValue extends AuthState {
   loginWithPassword: (email: string, password: string) => Promise<void>;
   registerAccount: (name: string, email: string, password: string) => Promise<void>;
   continueAsDemo: () => Promise<void>;
-  continueOffline: () => Promise<void>;
   logout: () => void;
 }
 
@@ -120,13 +118,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [withAuthResponse]);
 
-  const continueOffline = useCallback(async () => {
-    clearStoredToken();
-    storeMode('demo');
-    api.setDataMode('demo');
-    await loadProfile('demo');
-  }, [loadProfile]);
-
   const logout = useCallback(() => {
     clearStoredToken();
     storeMode('live');
@@ -135,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, loginWithPassword, registerAccount, continueAsDemo, continueOffline, logout }}>
+    <AuthContext.Provider value={{ ...state, loginWithPassword, registerAccount, continueAsDemo, logout }}>
       {children}
     </AuthContext.Provider>
   );

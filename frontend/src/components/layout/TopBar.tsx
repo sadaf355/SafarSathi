@@ -82,7 +82,7 @@ function Notifications() {
 }
 
 function ProfileMenu({ onRunDemo, onReset }: { onRunDemo: () => void; onReset: () => void }) {
-  const { profile, logout, dataMode } = useAuth();
+  const { profile, logout } = useAuth();
   const { phase, demoRunning, isBusy, trip } = useApp();
   const { navigate } = useRouter();
   const [open, setOpen] = useState(false);
@@ -105,9 +105,9 @@ function ProfileMenu({ onRunDemo, onReset }: { onRunDemo: () => void; onReset: (
           <div className="px-3 py-2.5">
             <div className="text-sm font-bold text-ink">{name}</div>
             <div className="truncate text-xs text-ink-muted">{profile?.email}</div>
-            <span className={cn('pill mt-2', dataMode === 'demo' ? 'bg-ai-light text-ai' : 'bg-safe-light text-safe')}>
-              <span className={cn('h-1.5 w-1.5 rounded-full', dataMode === 'demo' ? 'bg-ai' : 'bg-safe')} />
-              {dataMode === 'demo' ? 'Offline demo data' : 'Connected to live backend'}
+            <span className="pill mt-2 bg-safe-light text-safe">
+              <span className="h-1.5 w-1.5 rounded-full bg-safe" />
+              Connected to live backend
             </span>
           </div>
           <div className="my-1 h-px bg-line" />

@@ -348,7 +348,11 @@ function ListView({ nodes, onOpen }: { nodes: ItineraryNodeData[]; onOpen: () =>
           <tbody className="divide-y divide-line">
             {nodes.map((n) => (
               <tr key={n.id} onClick={onOpen} className="cursor-pointer hover:bg-canvas/60">
-                <td className="px-5 py-3"><div className="font-semibold text-ink">{n.subtitle || n.title}</div><div className="text-xs text-ink-muted">{n.provider}</div></td>
+                <td className="px-5 py-3">
+                  {/* The row is clickable for pointer users; this button is the keyboard-reachable equivalent. */}
+                  <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(); }} className="rounded text-left font-semibold text-ink hover:text-safar-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-safar-blue focus-visible:ring-offset-2">{n.subtitle || n.title}</button>
+                  <div className="text-xs text-ink-muted">{n.provider}</div>
+                </td>
                 <td className="px-4 py-3 text-ink-soft">{n.label}</td>
                 <td className="px-4 py-3 text-ink-soft">{n.scheduledTime}</td>
                 <td className="px-4 py-3"><StatusBadge status={n.status} /></td>

@@ -67,7 +67,7 @@ function LiveView({ item, onRefresh, refreshing }: { item: api.LiveTransport; on
   );
 }
 
-/** Existing TripRescue simulation on top of a real live baseline. */
+/** Existing SafarSathi simulation on top of a real live baseline. */
 function LiveBaselineSimulator({ tracked, title }: { tracked: api.TrackedTransport; title: string }) {
   const { trip, triggerDisruption, isBusy } = useApp();
   const { navigate } = useRouter();
@@ -120,7 +120,7 @@ function LiveBaselineSimulator({ tracked, title }: { tracked: api.TrackedTranspo
           {!live && <p className="mt-2 text-xs text-ink-muted">No live baseline right now — the simulation uses the simulated delay only.</p>}
         </>
       ) : (
-        <p className="mt-2 text-sm text-ink-soft">TripRescue models train disruptions as a missed/failed train. Live delay stays as reported{live?.delayMinutes != null ? ` (+${live.delayMinutes} min)` : ''}.</p>
+        <p className="mt-2 text-sm text-ink-soft">SafarSathi models train disruptions as a missed/failed train. Live delay stays as reported{live?.delayMinutes != null ? ` (+${live.delayMinutes} min)` : ''}.</p>
       )}
       {preview && (
         <p className="mt-2 text-sm text-ink-soft">
@@ -129,7 +129,7 @@ function LiveBaselineSimulator({ tracked, title }: { tracked: api.TrackedTranspo
       )}
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" onClick={runPreview} disabled={busy} className="btn-ghost px-3 py-1.5 text-xs">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />} Preview impact</button>
-        <button type="button" onClick={sendToRecovery} disabled={isBusy} className="btn-primary px-3 py-1.5 text-xs"><Zap className="h-3.5 w-3.5" /> Run in TripRescue recovery</button>
+        <button type="button" onClick={sendToRecovery} disabled={isBusy} className="btn-primary px-3 py-1.5 text-xs"><Zap className="h-3.5 w-3.5" /> Run in SafarSathi recovery</button>
       </div>
     </div>
   );

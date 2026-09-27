@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
 import type { WeatherScenarioRequest } from '@/services/api';
 import type { ItineraryNodeData } from '@/types';
-import { severityOf } from '@/services/demoTwin';
 import { cn } from '@/lib/utils';
-import { SCENARIO_PRESETS } from '@/lib/digitalTwin';
+import { SCENARIO_PRESETS, severityOf } from '@/lib/digitalTwin';
 import { Loader2, Play } from 'lucide-react';
 
 interface SliderProps {

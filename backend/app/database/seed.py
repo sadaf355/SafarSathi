@@ -339,7 +339,7 @@ def build_ladakh_trip(db: Session, traveler_id: str) -> Trip:
         ActivityEvent(
             trip_id=LADAKH_TRIP_ID,
             type=ActivityType.SYSTEM,
-            message="TripRescue engine initialized",
+            message="SafarSathi engine initialized",
             detail="AI disruption detection active",
             timestamp=datetime(2025, 9, 12, 5, 0),
         )
@@ -588,7 +588,7 @@ def seed_if_empty(db: Session) -> None:
         email="aisha.khan@example.com",  # reserved domain: never deliverable
         home_airport="Mumbai (BOM)",
         loyalty_tier="Premium",
-        password_hash=hash_password("triprescue-demo"),
+        password_hash=hash_password("safarsathi-demo"),
     )
     db.add(traveler)
     db.flush()

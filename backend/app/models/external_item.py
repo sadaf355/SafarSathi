@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.core.datetime_utils import utcnow_naive
 
 from sqlalchemy import DateTime, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -25,4 +26,4 @@ class ExternalItemLink(Base):
     kind: Mapped[str] = mapped_column(String, nullable=False)  # flight | train | hotel | attraction | event
     source: Mapped[str] = mapped_column(String, nullable=False)  # aviationstack | railradar | openstreetmap | ticketmaster
     external_id: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)

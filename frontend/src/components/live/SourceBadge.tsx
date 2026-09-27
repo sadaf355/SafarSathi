@@ -24,7 +24,7 @@ export function SourceBadge({ source, live, simulation, updatedAt, className }: 
   if (simulation) {
     return (
       <span className={cn('pill bg-ai-light text-ai', className)}>
-        <span className="h-2 w-2 rounded-full bg-ai" aria-hidden="true" /> SIMULATION · TripRescue Demo
+        <span className="h-2 w-2 rounded-full bg-ai" aria-hidden="true" /> SIMULATION · SafarSathi Demo
       </span>
     );
   }

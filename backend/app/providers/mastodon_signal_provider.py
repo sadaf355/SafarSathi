@@ -26,7 +26,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-logger = logging.getLogger("triprescue.providers.mastodon")
+logger = logging.getLogger("safarsathi.providers.mastodon")
 
 RATE_LIMIT_COOLDOWN_SECONDS = 60
 MAX_POST_AGE = timedelta(hours=72)

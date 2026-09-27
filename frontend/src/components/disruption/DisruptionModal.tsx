@@ -5,6 +5,7 @@ import { useApp } from '@/store/AppContext';
 import { disruptionTypes } from '@/data/mockData';
 import * as api from '@/services/api';
 import { useRouter } from '@/lib/router';
+import { useSpeechInput } from '@/hooks/useSpeechInput';
 import {
   Clock,
   XCircle,
@@ -17,6 +18,8 @@ import {
   ArrowRight,
   Zap,
   Loader2,
+  Mic,
+  MicOff,
 } from 'lucide-react';
 import type { DisruptionType } from '@/types';
 
@@ -66,6 +69,10 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   const [analyzing, setAnalyzing] = useState(false);
   /** The booking this disruption applies to; undefined = let Safar Sathi pick. */
   const [nodeId, setNodeId] = useState<string | undefined>(undefined);
+  const speech = useSpeechInput((text) => {
+    setSmartText((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
+    setUnderstood(null);
+  });
 
   const delayMinutes = DELAY_BASED_TYPES.has(selected) ? delayMinutesInput : undefined;
   const allowed = ALLOWED_CATEGORIES[selected] ?? [];
@@ -124,7 +131,7 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
         return;
       }
     } catch {
-      /* offline demo or backend unavailable - use the local parser below */
+      /* backend unavailable - use the local parser below */
     } finally {
       setAnalyzing(false);
     }
@@ -160,8 +167,26 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
           <div className="text-[10px] font-bold uppercase tracking-wider text-safar-blue">Smart reporting</div>
           <div className="mt-1 text-sm font-semibold text-ink">What happened?</div>
           <div className="mt-3 flex gap-2">
-            <textarea value={smartText} onChange={(e)=>{setSmartText(e.target.value);setUnderstood(null)}} rows={2} placeholder="e.g. My Mumbai to Delhi flight is delayed by 95 minutes." className="min-h-20 flex-1 resize-none rounded-xl border border-line-strong bg-white px-3 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:border-safar-blue focus:outline-none"/>
-            <button onClick={analyzeSmartReport} disabled={!smartText.trim() || analyzing} className="self-end rounded-xl bg-safar-blue px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">{analyzing ? 'Analyzing…' : 'Analyze'}</button>
+            <textarea aria-label="Describe what happened" value={smartText} onChange={(e)=>{setSmartText(e.target.value);setUnderstood(null)}} rows={2} placeholder={speech.supported ? 'Type or tap the mic, e.g. My Mumbai to Delhi flight is delayed by 95 minutes.' : 'e.g. My Mumbai to Delhi flight is delayed by 95 minutes.'} className="min-h-20 flex-1 resize-none rounded-xl border border-line-strong bg-white px-3 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:border-safar-blue focus:outline-none"/>
+            <div className="flex flex-col justify-end gap-2">
+              {speech.supported && (
+                <button
+                  type="button"
+                  onClick={speech.listening ? speech.stop : speech.start}
+                  aria-pressed={speech.listening}
+                  aria-label={speech.listening ? 'Stop listening' : 'Speak your report'}
+                  title={speech.listening ? 'Stop listening' : 'Speak your report'}
+                  className={cn('flex items-center justify-center rounded-xl border px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-safar-blue', speech.listening ? 'animate-pulse border-danger/40 bg-danger-light text-danger' : 'border-line-strong bg-white text-safar-blue hover:bg-safar-blue/5')}
+                >
+                  {speech.listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+              )}
+              <button onClick={analyzeSmartReport} disabled={!smartText.trim() || analyzing} className="rounded-xl bg-safar-blue px-3 py-2 text-xs font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-safar-blue focus-visible:ring-offset-2 disabled:opacity-40">{analyzing ? 'Analyzing…' : 'Analyze'}</button>
+            </div>
+          </div>
+          <div aria-live="polite" className="text-xs">
+            {speech.listening && <p className="mt-2 text-safar-blue">Listening… describe what happened.</p>}
+            {speech.error && <p className="mt-2 text-danger">{speech.error}</p>}
           </div>
           {understood && <div className="mt-3 rounded-lg border border-safar-safe/20 bg-white p-3 text-xs"><div className="font-semibold text-ink">I understood</div><div className="mt-1 text-ink-muted">{understood.label}</div><div className="mt-2 text-[10px] text-ink-muted">Review the details below before confirming.</div></div>}
         </div>

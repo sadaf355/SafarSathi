@@ -19,7 +19,7 @@ from html import escape
 
 from app.config import get_settings
 
-logger = logging.getLogger("triprescue.email")
+logger = logging.getLogger("safarsathi.email")
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="email")
 
 

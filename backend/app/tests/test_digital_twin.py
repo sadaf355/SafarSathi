@@ -146,6 +146,14 @@ def test_simulate_is_sandboxed_and_complete(client):
     assert body["mitigation"] and body["socialSignals"]["signals"]
 
 
+def test_twin_state_counts_cached_simulations(client):
+    before = client.get("/api/twin/state")
+    assert before.status_code == 200 and before.json()["status"] == "ready"
+    client.post(f"/api/trips/{TRIP}/digital-twin/simulate", json=MONSOON)
+    after = client.get("/api/twin/state").json()
+    assert after["active_simulations_cached"] == before.json()["active_simulations_cached"] + 1
+
+
 def test_simulate_validates_input(client):
     assert client.post(f"/api/trips/{TRIP}/digital-twin/simulate", json={**MONSOON, "rainfallMmPerHour": -5}).status_code == 422
     assert client.post(f"/api/trips/{TRIP}/digital-twin/simulate", json={**MONSOON, "affectedNodeId": "nope"}).status_code == 400

@@ -89,7 +89,7 @@ def test_json_logging_includes_request_id_and_extras(capsys):
     app_logging.configure_logging("json", "INFO")
     token = app_logging.request_id_var.set("req_test123")
     try:
-        logging.getLogger("triprescue.test").info("hello", extra={"trip_id": "t1"})
+        logging.getLogger("safarsathi.test").info("hello", extra={"trip_id": "t1"})
     finally:
         app_logging.request_id_var.reset(token)
         app_logging.configure_logging("console", "INFO")

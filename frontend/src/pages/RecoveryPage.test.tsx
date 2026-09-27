@@ -1,30 +1,32 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { RecoveryPage } from './RecoveryPage';
 import { ToastProvider } from '@/components/ui/ToastProvider';
 import * as AppContextModule from '@/store/AppContext';
 import * as api from '@/services/api';
-import { demoBackend } from '@/services/demoBackend';
+import fixtures from '@/test/fixtures/ladakh.json';
 import { defaultPreferences } from '@/data/mockData';
-import type { RecoveryOption, Trip } from '@/types';
+import type { Disruption, RecoveryOption, Trip } from '@/types';
 
+// Responses captured from the real backend (see src/test/fixtures/README.md).
+vi.mock('@/services/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/api')>()),
+  getRecoveryNarrative: vi.fn(),
+}));
 vi.mock('@/store/AppContext', () => ({ useApp: vi.fn() }));
 vi.mock('@/lib/router', () => ({ useRouter: () => ({ navigate: vi.fn(), route: 'recovery', params: {}, consumeParams: vi.fn() }) }));
 vi.mock('@/components/layout/ShellActions', () => ({ useShellActions: () => ({ openSimulate: vi.fn(), openSupport: vi.fn() }) }));
 
-const HERO = 'demo-golden-triangle';
 let trip: Trip;
 let options: RecoveryOption[];
 const applyRecoveryPlan = vi.fn(async () => {});
 
-beforeAll(() => api.setDataMode('demo'));
-afterAll(() => api.setDataMode('live'));
-beforeEach(async () => {
+beforeEach(() => {
   applyRecoveryPlan.mockClear();
-  trip = await demoBackend.resetTrip(HERO);
-  const { disruption } = await demoBackend.triggerDisruption(HERO, { type: 'flight-delay', delayMinutes: 95 });
-  options = await demoBackend.generateRecoveryOptions(HERO);
-  trip = await demoBackend.getItinerary(HERO);
+  trip = structuredClone(fixtures.delayTrip) as unknown as Trip;
+  options = structuredClone(fixtures.delayRecoveryOptions) as unknown as RecoveryOption[];
+  const disruption = fixtures.delayDisruption as unknown as Disruption;
+  vi.mocked(api.getRecoveryNarrative).mockResolvedValue(fixtures.delayNarrative as unknown as api.RecoveryNarrative);
   vi.mocked(AppContextModule.useApp).mockImplementation(() => ({
     trip, phase: 'recovering', activeDisruption: disruption, recoveryOptions: options,
     selectedRecovery: options[0].id, selectRecovery: vi.fn(), applyRecoveryPlan, appliedRecovery: null,

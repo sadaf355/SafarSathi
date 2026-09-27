@@ -98,6 +98,44 @@ def test_recovery_narrative_endpoint(client):
     assert body["topOptionId"] in {o["id"] for o in options}
 
 
+def _nugen(handler):
+    import httpx
+
+    from app.core.nugen_client import NugenClient
+
+    return NugenClient(api_key="key", model_id="safar-sathi-travel-twin-v1", base_url="https://api.nugen.in",
+                       http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+def test_recovery_narrative_uses_nugen_when_configured(client, monkeypatch):
+    import httpx
+
+    from app.services import nugen_service
+
+    sent = {}
+
+    def handler(request):
+        sent["body"] = request.content.decode()
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Nugen ranking explanation."}}]})
+
+    monkeypatch.setattr(nugen_service, "_client", _nugen(handler))
+    _disrupt(client)
+    body = client.post("/api/assistant/recovery-narrative", json={"tripId": "trip-ladakh-2025"}).json()
+    assert body["source"] == "nugen" and body["narrative"] == "Nugen ranking explanation."
+    assert "options_ranked" in sent["body"]  # grounded in the engine's ranking
+
+
+def test_recovery_narrative_falls_back_when_nugen_fails(client, monkeypatch):
+    import httpx
+
+    from app.services import nugen_service
+
+    monkeypatch.setattr(nugen_service, "_client", _nugen(lambda r: httpx.Response(503)))
+    _disrupt(client)
+    body = client.post("/api/assistant/recovery-narrative", json={"tripId": "trip-ladakh-2025"}).json()
+    assert body["source"] == "deterministic" and body["narrative"]
+
+
 def test_recovery_narrative_without_disruption(client):
     resp = client.post("/api/assistant/recovery-narrative", json={"tripId": "trip-ladakh-2025"})
     assert resp.status_code == 200

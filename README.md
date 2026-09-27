@@ -1,4 +1,4 @@
-# TripRescue
+# SafarSathi
 
 ### Explainable travel disruption recovery engine for multi-leg itineraries.
 
@@ -8,7 +8,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white&labelColor=20232a)
 ![SQLite](https://img.shields.io/badge/SQLite-SQLAlchemy-003B57?logo=sqlite&logoColor=white&labelColor=20232a)
 
-TripRescue is an explainable travel disruption recovery engine that models multi-leg itineraries as dependency graphs. When one booking is disrupted, TripRescue propagates the impact across connected bookings, explains exactly what breaks and why, generates feasible recovery plans, ranks them according to traveler priorities, and re-validates the itinerary after recovery.
+SafarSathi is an explainable travel disruption recovery engine that models multi-leg itineraries as dependency graphs. When one booking is disrupted, SafarSathi propagates the impact across connected bookings, explains exactly what breaks and why, generates feasible recovery plans, ranks them according to traveler priorities, and re-validates the itinerary after recovery.
 
 ---
 
@@ -17,7 +17,7 @@ TripRescue is an explainable travel disruption recovery engine that models multi
 2. [Problem Statement](#2-problem-statement)
 3. [Solution](#3-solution)
 4. [Core Innovation](#4-core-innovation)
-5. [How TripRescue Works](#5-how-triprescue-works)
+5. [How SafarSathi Works](#5-how-safarsathi-works)
 6. [Dependency Graph Engine](#6-dependency-graph-engine)
 7. [Disruption Propagation](#7-disruption-propagation)
 8. [Impact Analysis](#8-impact-analysis)
@@ -49,7 +49,7 @@ TripRescue is an explainable travel disruption recovery engine that models multi
 ---
 
 ## 1. Overview
-TripRescue is an intelligent, explainable travel disruption recovery platform. Rather than viewing an itinerary as an isolated checklist of tickets, TripRescue models the entire trip as a directed dependency graph. When a disruption occurs (such as a flight delay or cancellation), the system traces the cascade of downstream impacts, evaluates timing constraints and minimum connection buffers, classifies node health, generates multi-booking recovery candidates, ranks options based on traveler preferences, and re-validates the graph upon resolution.
+SafarSathi is an intelligent, explainable travel disruption recovery platform. Rather than viewing an itinerary as an isolated checklist of tickets, SafarSathi models the entire trip as a directed dependency graph. When a disruption occurs (such as a flight delay or cancellation), the system traces the cascade of downstream impacts, evaluates timing constraints and minimum connection buffers, classifies node health, generates multi-booking recovery candidates, ranks options based on traveler preferences, and re-validates the graph upon resolution.
 
 ## 2. Problem Statement
 Travel disruptions are rarely isolated. A 90-minute delay on an inbound flight frequently causes:
@@ -58,7 +58,7 @@ $$\text{Flight Delay} \longrightarrow \text{Missed Airport Transfer} \longrighta
 Existing travel applications notify travelers of delay alerts in silos. The traveler is left to manually calculate connection buffers, determine which downstream reservations are in jeopardy, check conflicting cancellation policies, search alternative flights/hotels/transfers, and piece together a coherent recovery plan under immense stress.
 
 ## 3. Solution
-TripRescue automates this entire cognitive loop:
+SafarSathi automates this entire cognitive loop:
 ```
 Disruption Trigger → Dependency Graph → Impact Propagation → Severity Classification
    → Recovery Candidate Generation → Preference-Based Ranking → Plan Selection → Graph Re-validation
@@ -75,7 +75,7 @@ Every action is deterministic, transparent, and explainable, providing travelers
 7. **Sequential Re-Disruption Support**: Trips maintain canonical state; recovered itineraries can experience further independent disruptions.
 8. **AI Assistant with Deterministic Fallback**: Grounded in live graph state with an integrated fallback when LLM keys are absent.
 
-## 5. How TripRescue Works
+## 5. How SafarSathi Works
 1. **Model**: The itinerary is ingested and structured into nodes (flights, transfers, stays, activities) connected by temporal and location dependency edges.
 2. **Detect & Propagate**: A disruption event triggers downstream topological traversal, recomputing arrival times and connection buffers.
 3. **Diagnose**: Nodes are tagged with precise severity and human-readable explanations.
@@ -135,7 +135,7 @@ Following recovery application, the graph engine re-runs full impact propagation
 - Updates trip health status to `recovered` / `healthy`.
 
 ## 14. Risk Intelligence
-TripRescue features a proactive risk engine that monitors:
+SafarSathi features a proactive risk engine that monitors:
 - Weather vulnerability at transit hubs.
 - Historical buffer tight-spots.
 - Tight connections with high cascade potential.
@@ -153,8 +153,28 @@ An integrated AI Copilot provides contextual explanations and recommendations, b
 - **Q&A Assistant**: grounded directly in live trip, disruption, and recovery state. Capable of answering questions like "Why did my transfer break?" and "What is the fastest recovery?". Falls back to a keyword-based deterministic responder when `ANTHROPIC_API_KEY` is unset or the call fails.
 - **Generative recovery narratives**: each ranked recovery option gets a plain-language, 2-3 sentence explanation grounded in its real cost/time/preservation/score data, shown in a "✦ Why this option" panel in the Recovery Center. Falls back to no panel (never a broken or stale placeholder) without a key.
 - **Generative disruption narratives**: the "✦ SAFARSATHI INSIGHT" summary on the Impact Analysis panel is LLM-generated from the real disruption and cascade data when a key is configured, falling back to the original templated sentence otherwise.
-- **Natural-language disruption reporting**: the "Smart reporting" box on the disruption modal extracts a structured `{type, delayMinutes, nodeId}` report from typed free text (voice input is not implemented yet), matching the booking by flight number, airport codes, city names ("my Delhi to Leh flight") or booking name ("Pangong tour"); a "Which booking?" picker lets the traveler confirm or change it. The backend uses an LLM call with strict JSON-only, "never invent a fact not in the data" discipline. Falls back to a deterministic regex/keyword extractor (ported 1:1 from the original client-side logic) when the LLM is unavailable - the traveler always sees the same "I understood: ..." confirmation card before anything is submitted.
+- **Natural-language disruption reporting**: the "Smart reporting" box on the disruption modal extracts a structured `{type, delayMinutes, nodeId}` report from typed or spoken free text (a mic button uses the browser's Web Speech API, `en-IN`, and is hidden where the browser doesn't support it; the transcript lands in the same text box for review), matching the booking by flight number, airport codes, city names ("my Delhi to Leh flight") or booking name ("Pangong tour"); a "Which booking?" picker lets the traveler confirm or change it. The backend uses an LLM call with strict JSON-only, "never invent a fact not in the data" discipline. Falls back to a deterministic regex/keyword extractor (ported 1:1 from the original client-side logic) when the LLM is unavailable - the traveler always sees the same "I understood: ..." confirmation card before anything is submitted.
 - All four AI paths share the same contract: check for `ANTHROPIC_API_KEY` first, wrap the call in a broad `try/except`, log a warning on failure, and never raise - a bad key, outage, or malformed response degrades gracefully instead of breaking the flow.
+- The recovery-ranking narrative ("Why these recommendations") asks the Nugen-aligned model first, then Claude, then the deterministic explanation; the panel is tagged `· Nugen` or `· AI` so it is always clear which one answered.
+
+### Nugen Intelligence pipeline (HackCelestial Addendum B)
+
+```mermaid
+flowchart LR
+  A["Digital Twin engine<br/>(same code the API runs)"] -->|scripts/export_nugen_dataset.py| B["Alignment dataset<br/>60 grounded samples<br/>+ benchmark + domain doc"]
+  B -->|--upload| C["Nugen alignment project<br/>base: qwen-v2p5-0p5b-instruct"]
+  C -->|deploy| D["Aligned model<br/>NUGEN_MODEL_ID"]
+  D -->|app/core/nugen_client.py| E["nugen_service.py"]
+  E --> F["Digital Twin: cascade explanation<br/>+ mitigation tips"]
+  E --> G["Recovery Center:<br/>ranking narrative"]
+```
+
+1. **Dataset** - `backend/scripts/export_nugen_dataset.py` runs the real Digital Twin over the three seeded multi-leg trips against 20 weather scenarios (broad storms, storms centred on one booking type, and no-impact negatives so the model learns not to over-alarm). Each sample's instruction is the exact grounded JSON the app sends at inference time; the response is the reference reasoning (cascade explanation, headline risk with its range, validated preemptive recovery). Output: `nugen_alignment_dataset.jsonl` (60 samples: 47 with cascades, 13 no-impact), `nugen_benchmark.json`, `nugen_domain_document.md`.
+2. **Alignment** - `python scripts/export_nugen_dataset.py --upload` (with `NUGEN_API_KEY`) uploads the domain document and benchmark and creates the alignment project against the base model.
+3. **Deployment** - once alignment completes, deploy the model in Nugen and set `NUGEN_MODEL_ID` (default `safar-sathi-travel-twin-v1`) and `NUGEN_API_KEY` on the backend.
+4. **Inference** - `app/core/nugen_client.py` calls `POST /api/v3/inference/chat/completions`. It never raises: a missing key, timeout, HTTP error or 429 (60 s cool-down) returns `None`, and `nugen_service.py` answers from its built-in heuristic engine with the identical grounded context. The UI labels which engine answered ("Nugen" vs "Heuristic reasoning engine"); `GET /api/twin/state` reports whether Nugen is enabled.
+
+Every prompt tells the model to use only facts from the JSON and never invent bookings, times, prices or providers.
 
 ## 17. Activity Log
 Maintains an immutable timeline of all itinerary events:
@@ -171,7 +191,7 @@ Centralized in-app notification center that alerts travelers to:
 - Schedule adjustments.
 
 ## 19. Demo Mode
-TripRescue includes interactive hero scenarios (e.g., London to Tokyo multi-leg journey):
+SafarSathi includes interactive hero scenarios (e.g., London to Tokyo multi-leg journey):
 - One-click disruption simulation (e.g., 90-minute flight delay).
 - Guided walkthrough demonstrating cascade propagation, impact analysis, recovery ranking, and re-validation.
 - Deterministic simulation mode for rapid testing.
@@ -240,8 +260,8 @@ The codebase is thoroughly verified with comprehensive test suites:
 
 | Suite | Status | Details |
 | :--- | :--- | :--- |
-| **Backend Unit & Engine Tests** | **327 tests, 323 passed, 4 skipped, 0 failed** | `pytest app/tests/ -q`, verified against a full run (the 4 skips need a reachable Postgres) |
-| **Frontend Unit & Component Tests** | **135 tests, 135 passed, 0 failed** | `npx vitest run`, verified against a full run |
+| **Backend Unit & Engine Tests** | **409 tests, 405 passed, 4 skipped, 0 failed** | `pytest app/tests/ -q`, verified against a full run on 27 Sep 2026 (the 4 skips need a reachable Postgres) |
+| **Frontend Unit & Component Tests** | **154 tests, 154 passed, 0 failed** | `npx vitest run` (30 test files), verified against a full run on 27 Sep 2026. Page tests use fixtures captured from the real backend (`src/test/fixtures`, regenerate with `backend/scripts/make_frontend_fixtures.py`) |
 | **Frontend type check / lint / build** | **Passing** | `npm run typecheck`, `npm run lint`, `npm run build` all clean |
 | **Browser E2E Flow** | **Not shipped** | No Playwright/Cypress suite is present in this archive |
 | **Python syntax** | **Verified** | Backend source compiles with `py_compile` |
@@ -258,32 +278,35 @@ cd frontend && npm run typecheck && npm run lint && npm test && npm run build
 ## 25. Product Screenshots
 
 ### 1. Command Center & Overview
-![TripRescue Command Center](frontend/src/assets/screenshots/01-command-center.png)
+![SafarSathi Command Center](frontend/src/assets/screenshots/01-command-center.png)
 
 ### 2. Dependency Graph Visualization
-![TripRescue Dependency Graph](frontend/src/assets/screenshots/02-trip-graph.png)
+![SafarSathi Dependency Graph](frontend/src/assets/screenshots/02-trip-graph.png)
 
 ### 3. Impact Analysis & Cascade Reasoning
-![TripRescue Impact Analysis](frontend/src/assets/screenshots/03-impact-analysis.png)
+![SafarSathi Impact Analysis](frontend/src/assets/screenshots/03-impact-analysis.png)
 
 ### 4. Ranked Recovery Options
-![TripRescue Recovery Options](frontend/src/assets/screenshots/04-recovery-options.png)
+![SafarSathi Recovery Options](frontend/src/assets/screenshots/04-recovery-options.png)
 
 ### 5. Before & After Itinerary Comparison
-![TripRescue Before After](frontend/src/assets/screenshots/05-before-after.png)
+![SafarSathi Before After](frontend/src/assets/screenshots/05-before-after.png)
 
 ### 6. Risk Intelligence & Proactive Insights
-![TripRescue Risk Intelligence](frontend/src/assets/screenshots/06-risk-ai.png)
+![SafarSathi Risk Intelligence](frontend/src/assets/screenshots/06-risk-ai.png)
 
 ## 26. Live Demo
-- **Frontend Web App**: [https://daanialmirza5.github.io/triprescue/](https://daanialmirza5.github.io/triprescue/)
-- **Backend API**: [https://triprescue-kw9d.onrender.com](https://triprescue-kw9d.onrender.com)
-- **API Health Endpoint**: [https://triprescue-kw9d.onrender.com/api/health](https://triprescue-kw9d.onrender.com/api/health)
+- **Frontend Web App**: _TODO — add your Vercel URL here once deployed (see §27)._
+- **Backend API**: _TODO — add your Render URL here once deployed._
+- **API Health Endpoint**: _TODO — `<your-render-url>/api/health`._
 
 ## 27. Deployment
-- **Frontend**: Hosted on GitHub Pages as a static SPA bundle.
-- **Backend**: Hosted on Render with FastAPI and SQLite.
-- **Environment**: Configured via `.env.example` templates with automatic mock fallback.
+- **Frontend**: Vercel (static Vite/React SPA build).
+- **Backend**: Render (FastAPI, Docker).
+- **Database**: Neon (managed serverless Postgres).
+- **Environment**: Configured via `.env.example` templates with automatic mock fallback for every optional integration.
+
+See `DEPLOYMENT.md` in the repo root for the full step-by-step Neon + Render + Vercel deployment guide, including every environment variable and API key required.
 
 ## 28. Current Limitations
 - **Disruption Ingestion**: Disruption events are currently triggered manually or simulated via Demo Mode (deterministic scenarios). Direct live flight radar / GDS webhook feeds are planned for future phases.
@@ -300,35 +323,44 @@ cd frontend && npm run typecheck && npm run lint && npm test && npm run build
 
 ## 30. Project Structure
 ```
-TripRescue/
+SafarSathi/
 ├── .gitignore                  # Git ignore definitions
 ├── README.md                   # Comprehensive project documentation
+├── DEPLOYMENT.md               # Render + Vercel deployment guide
+├── IMPLEMENTATION-CHECKLIST.md # Verified feature/compliance tracking
 ├── LICENSE
 ├── SECURITY.md
-├── docker-compose.yml           # Local Postgres + backend orchestration
+├── render.yaml                 # Render blueprint for the backend
+├── docker-compose.yml          # Local Postgres + backend orchestration
 ├── docker.env.example
-├── pytest.ini                   # Root pytest config (points at backend/app/tests)
 │
 ├── backend/                    # FastAPI Backend Application
 │   ├── .env.example            # Backend environment template
+│   ├── Dockerfile              # Backend container image (used by Render)
+│   ├── docker-entrypoint.sh    # Runs migrations, then starts uvicorn
+│   ├── alembic.ini
+│   ├── alembic/                # Postgres schema migrations
 │   ├── pytest.ini              # Pytest test configuration
 │   ├── requirements.txt        # Python package dependencies
-│   └── app/
-│       ├── __init__.py
-│       ├── config.py           # Application settings & environment loader
-│       ├── main.py             # FastAPI entrypoint & router registration
-│       ├── api/                # API route handlers (trips, disruptions, recovery, auth)
-│       ├── database/           # SQLite database engine, session, and seed data
-│       ├── engines/            # Core algorithmic engines (graph, propagation, recovery, scoring, refund, risk)
-│       ├── models/             # SQLAlchemy ORM database models
-│       ├── providers/          # Flight, hotel, transfer, and activity provider adapters
-│       ├── repositories/       # Data access repositories
-│       ├── schemas/            # Pydantic request/response schemas
-│       ├── services/           # Business logic service layer
-│       └── tests/              # Pytest backend test suite
-│
-├── scripts/
-│   └── dev-all.ps1             # Local development startup script
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── config.py           # Application settings & environment loader
+│   │   ├── main.py             # FastAPI entrypoint & router registration
+│   │   ├── api/                # API route handlers (trips, disruptions, recovery, auth)
+│   │   ├── database/           # SQLite database engine, session, and seed data
+│   │   ├── engines/            # Core algorithmic engines (graph, propagation, recovery, scoring, refund, risk)
+│   │   ├── models/             # SQLAlchemy ORM database models
+│   │   ├── providers/          # Flight, hotel, transfer, and activity provider adapters
+│   │   ├── repositories/       # Data access repositories
+│   │   ├── schemas/            # Pydantic request/response schemas
+│   │   ├── services/           # Business logic service layer
+│   │   └── tests/              # Pytest backend test suite
+│   └── scripts/
+│       ├── export_nugen_dataset.py     # Builds the Nugen alignment dataset (and uploads with --upload)
+│       ├── nugen_alignment_dataset.jsonl
+│       ├── nugen_benchmark.json
+│       ├── nugen_domain_document.md
+│       └── make_frontend_fixtures.py   # Captures real API responses for frontend tests
 │
 └── frontend/                   # React Frontend Application
     ├── .env.example             # Frontend environment template (VITE_*)
@@ -341,7 +373,9 @@ TripRescue/
     ├── tsconfig.json            # TypeScript base configuration
     ├── tsconfig.app.json        # TypeScript application config
     ├── tsconfig.node.json       # TypeScript Node config
+    ├── vercel.json              # Vercel hosting config
     ├── vite.config.ts           # Vite bundler configuration
+    ├── public/                  # Favicon + destination/scene photos
     └── src/                     # React Frontend Application
         ├── App.tsx                 # Main application root with routing
         ├── index.css               # Global styling and Tailwind directives
@@ -349,12 +383,14 @@ TripRescue/
         ├── vite-env.d.ts           # Vite TypeScript definitions
         ├── assets/                 # Static visual assets (incl. screenshots/)
         ├── components/             # React components (graph, recovery, disruption, ai, ui, shell, landing)
-        ├── data/                   # Mock and fallback itinerary data
+        ├── data/                   # Disruption type catalogue, default preferences, graph layout
+        ├── hooks/                  # Shared hooks (travel data, add-to-trip, speech input)
+        ├── landing/                # Signed-out landing page and 3D hero
         ├── lib/                    # Graph layout algorithms, utilities, and helper functions
-        ├── pages/                  # Top-level view pages (Overview, LiveMonitor, MapView, Trips, etc.)
+        ├── pages/                  # Dashboard, Bookings, Live Updates, Recovery, Assistant, Digital Twin, Explore, Live Transport, Claims, Settings, Trip
         ├── services/               # Frontend API client service
         ├── store/                  # Application and Auth React Context state stores
-        ├── test/                   # Frontend test setup
+        ├── test/                   # Frontend test setup + backend-captured fixtures
         └── types/                  # Shared TypeScript interfaces and type definitions
 ```
 
@@ -385,17 +421,16 @@ npm run dev
 Frontend will be available at `http://localhost:5173`. Click **"Continue as Demo Traveler"** to access the dashboard with the seeded backend trips.
 
 ### 3. Safar Sathi frontend notes
-- **Landing page** (src/landing): shown to signed-out visitors. The hero is a lazy-loaded React Three Fiber scene (procedural low-poly models, no model downloads) that plays the Mumbai → Delhi → Agra disruption-and-recovery story; it pauses off-screen, shows a still frame under prefers-reduced-motion, and falls back to static art without WebGL (force with ?hero=static). **Get Started** opens sign-in; **Watch Demo** opens the offline demo and plays the guided recovery flow.
+- **Landing page** (src/landing): shown to signed-out visitors. The hero is a lazy-loaded React Three Fiber scene (procedural low-poly models, no model downloads) that plays the Mumbai → Delhi → Agra disruption-and-recovery story; it pauses off-screen, shows a still frame under prefers-reduced-motion, and falls back to static art without WebGL (force with ?hero=static). **Get Started** opens sign-in; **Watch Demo** signs in as the seeded demo traveler and plays the guided recovery flow.
 - **Screens** (hash routes, so deep links work on static hosting): `#/dashboard`, `#/bookings`, `#/live`, `#/recovery`, `#/assistant`, `#/trip`, `#/claims`, `#/settings`.
-- **Offline demo**: "Explore offline demo" on the sign-in screen runs the full UI against an in-browser data source (`src/services/demoBackend.ts`) that mirrors the API contract, with a Mumbai → Delhi → Agra trip already mid-disruption. Live sessions always use the real backend.
 - **Destination imagery**: `src/lib/destinationImages.ts` is the single registry; `<DestinationImage destination="Agra" />` resolves city → alias/airport code → country → generic fallback. Photos are bundled in `public/images` (from Unsplash, used under the Unsplash License).
 - **Environment**: `VITE_API_BASE_URL` (backend origin) and, for sub-path hosting such as GitHub Pages, `VITE_BASE_PATH` (e.g. `/SafarSathi/`) at build time. Add the deployed frontend origin to the backend's `CORS_ORIGINS`.
 - **Map tiles**: the world map uses Leaflet with Esri World Imagery tiles (attribution shown on the map).
 
 ## 32. Team / Author
-- **Author**: daanialmirza5
-- **Contact**: daanialmirza@gmail.com
-- **Project**: TripRescue — HackCelestial Final Release
+- **Author**: Sadaf Shaikh _(add teammate names here)_
+- **Contact**: your-team-email@example.com _(⚠️ TODO: replace with your real contact email)_
+- **Project**: SafarSathi — HackCelestial 3.0
 
 ## Live Travel Data
 
@@ -420,7 +455,7 @@ TICKETMASTER_API_KEY=
 
 Hotels/places need no key: `PLACES_PROVIDER=nominatim` (default) uses OpenStreetMap's Nominatim search, throttled to its 1 request/second policy; `PLACES_PROVIDER=overpass` with `OVERPASS_URL` uses an Overpass instance instead.
 
-**Live vs simulation.** Provider data is labelled `● LIVE · <provider> · Updated …`; OpenStreetMap and Ticketmaster results show their source; simulated data is always labelled `● SIMULATION`. When a provider fails or its key is missing, the API returns a clear message (e.g. "Live provider authentication is not configured.", "Live provider request limit reached. Please try again shortly.") — never simulated data. The offline demo has no live feed and says so. On the Live Transport page a tracked flight's real delay can be combined with a simulated extra delay (e.g. real +12 min + simulated +120 min = +132 min) and run through the existing simulation and recovery engine; the live record itself is never modified.
+**Live vs simulation.** Provider data is labelled `● LIVE · <provider> · Updated …`; OpenStreetMap and Ticketmaster results show their source; simulated data is always labelled `● SIMULATION`. When a provider fails or its key is missing, the API returns a clear message (e.g. "Live provider authentication is not configured.", "Live provider request limit reached. Please try again shortly.") — never simulated data. On the Live Transport page a tracked flight's real delay can be combined with a simulated extra delay (e.g. real +12 min + simulated +120 min = +132 min) and run through the existing simulation and recovery engine; the live record itself is never modified.
 
 **Adding to a trip.** Explore India and Live Transport results have one-tap *Add to Trip*. Items become ordinary itinerary bookings (flights → flight, trains → transfer, hotels → hotel, places/events → activity), join the dependency graph, and are tracked by `source` + provider `externalId` so the same item can't be added twice. Events use their own date (2 h reserved when no end time is announced), flights/trains their timetable, hotels the chosen check-in/out dates, places the chosen trip day. Nothing is booked or paid for and no prices are shown.
 

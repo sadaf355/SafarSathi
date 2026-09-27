@@ -68,7 +68,7 @@ def client():
 
     app.dependency_overrides[get_db] = override_get_db
     # Deliberately NOT using `with TestClient(app)`: that would run the real
-    # app lifespan, which creates/seeds the actual triprescue.db file rather
+    # app lifespan, which creates/seeds the actual safarsathi.db file rather
     # than this test's isolated in-memory database.
     test_client = TestClient(app)
     yield test_client

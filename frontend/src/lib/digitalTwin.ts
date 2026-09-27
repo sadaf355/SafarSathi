@@ -20,3 +20,16 @@ export const SCENARIO_PRESETS: ScenarioPreset[] = [
 const STATUSES: NodeStatus[] = ['healthy', 'at-risk', 'broken', 'delayed', 'cancelled', 'recovered'];
 /** Twin statuses arrive as plain strings; anything unknown renders as healthy. */
 export const asStatus = (s: string): NodeStatus => (STATUSES.includes(s as NodeStatus) ? (s as NodeStatus) : 'healthy');
+
+/** 0..1 overall scenario intensity - mirrors WeatherScenario.severity in
+ * backend/app/engines/digital_twin_engine.py so the slider preview matches the
+ * severity the simulation reports. */
+export function severityOf(s: WeatherScenarioRequest): number {
+  const parts = [
+    Math.min(1, s.rainfallMmPerHour / 80),
+    Math.min(1, Math.max(0, s.windSpeedKmh - 20) / 90),
+    Math.min(1, Math.max(0, 5000 - s.visibilityMeters) / 4800),
+    Math.min(1, Math.max(0, s.temperatureCelsius - 38) / 10),
+  ];
+  return Math.round((Math.max(...parts) * 0.7 + (parts.reduce((a, b) => a + b, 0) / parts.length) * 0.3) * 1000) / 1000;
+}

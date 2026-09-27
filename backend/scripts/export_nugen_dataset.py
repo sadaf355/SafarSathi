@@ -58,6 +58,22 @@ SCENARIOS = [
     dict(name="Mountain Cloudburst", rainfall_mm_per_hour=48, wind_speed_kmh=35, visibility_meters=900, temperature_celsius=14, storm_duration_hours=3, target="transfer"),
     dict(name="Afternoon Squall at the Activity", rainfall_mm_per_hour=30, wind_speed_kmh=72, visibility_meters=2500, temperature_celsius=24, storm_duration_hours=2, target="activity"),
     dict(name="Light Drizzle", rainfall_mm_per_hour=3, wind_speed_kmh=12, visibility_meters=7000, temperature_celsius=24, storm_duration_hours=3),
+    # Broad storms at different intensities and durations.
+    dict(name="Pre-monsoon Thunderstorm", rainfall_mm_per_hour=40, wind_speed_kmh=85, visibility_meters=1200, temperature_celsius=31, storm_duration_hours=3),
+    dict(name="Coastal Gale", rainfall_mm_per_hour=25, wind_speed_kmh=120, visibility_meters=2000, temperature_celsius=27, storm_duration_hours=6),
+    dict(name="Winter Blizzard", rainfall_mm_per_hour=20, wind_speed_kmh=95, visibility_meters=400, temperature_celsius=-6, storm_duration_hours=12),
+    dict(name="Extended Monsoon Spell", rainfall_mm_per_hour=35, wind_speed_kmh=40, visibility_meters=1500, temperature_celsius=27, storm_duration_hours=24),
+    dict(name="Morning Smog and Fog", rainfall_mm_per_hour=0, wind_speed_kmh=4, visibility_meters=400, temperature_celsius=9, storm_duration_hours=5),
+    dict(name="Moderate Steady Rain", rainfall_mm_per_hour=12, wind_speed_kmh=25, visibility_meters=5000, temperature_celsius=25, storm_duration_hours=6),
+    # Storms centred on one booking type, so the cascade starts mid-itinerary.
+    dict(name="Thunderstorm over the Departure Airport", rainfall_mm_per_hour=40, wind_speed_kmh=90, visibility_meters=800, temperature_celsius=29, storm_duration_hours=2, target="flight"),
+    dict(name="Flooding around the Hotel", rainfall_mm_per_hour=95, wind_speed_kmh=30, visibility_meters=1500, temperature_celsius=26, storm_duration_hours=6, target="hotel"),
+    dict(name="Heatwave during the Activity", rainfall_mm_per_hour=0, wind_speed_kmh=10, visibility_meters=9000, temperature_celsius=46, storm_duration_hours=6, target="activity"),
+    dict(name="Fog on the Transfer Route", rainfall_mm_per_hour=0, wind_speed_kmh=5, visibility_meters=120, temperature_celsius=8, storm_duration_hours=4, target="transfer"),
+    dict(name="Storm on the Return Leg", rainfall_mm_per_hour=60, wind_speed_kmh=80, visibility_meters=500, temperature_celsius=24, storm_duration_hours=4, target="return"),
+    # No-impact negatives: the model must not over-alarm on ordinary weather.
+    dict(name="Breezy Clear Day", rainfall_mm_per_hour=0, wind_speed_kmh=30, visibility_meters=10000, temperature_celsius=22, storm_duration_hours=6),
+    dict(name="Warm Afternoon", rainfall_mm_per_hour=0, wind_speed_kmh=12, visibility_meters=9000, temperature_celsius=36, storm_duration_hours=5),
 ]
 INSTRUCTION = (
     "Given this Safar Sathi itinerary, weather scenario and Digital Twin simulation (JSON), explain which legs fail and why, "

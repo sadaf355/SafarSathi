@@ -1,6 +1,6 @@
 """Amadeus Self-Service flight provider (live counterpart to MockFlightProvider).
 
-Selected by provider_factory.get_flight_provider() when PROVIDER_MODE=live and
+Selected by factory.get_flight_provider() when PROVIDER_MODE=live and
 Amadeus credentials are configured. Every failure - HTTP error, timeout,
 malformed payload - surfaces as ProviderFailureError, the same exception the
 mock raises in its failure modes, so RecoveryEngine's existing handling

@@ -20,7 +20,7 @@ from app.providers.base import CancellationPolicy, FlightProvider, ProviderAlter
 from app.providers.mock_flight_provider import MockFlightProvider
 from app.core.pipeline_trace import traced
 
-logger = logging.getLogger("triprescue.providers.fallback")
+logger = logging.getLogger("safarsathi.providers.fallback")
 
 RATE_LIMIT_COOLDOWN_SECONDS = 60
 

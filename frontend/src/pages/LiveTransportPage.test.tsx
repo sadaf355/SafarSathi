@@ -99,14 +99,14 @@ describe('LiveTransportPage', () => {
     renderPage();
     expect(await screen.findByText(/Simulated total impact/)).toBeInTheDocument();
     expect(screen.getByText('+132 min')).toBeInTheDocument();
-    expect(screen.getByText(/SIMULATION · TripRescue Demo/)).toBeInTheDocument();
+    expect(screen.getByText(/SIMULATION · SafarSathi Demo/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Preview impact/ }));
     await waitFor(() => expect(api.simulateDisruption).toHaveBeenCalledWith('trip-1', { type: 'flight-delay', primaryNodeId: 'node-flight', delayMinutes: 132 }));
     expect(await screen.findByText(/Nothing was changed/)).toBeInTheDocument();
     expect(live.delayMinutes).toBe(12);
 
-    fireEvent.click(screen.getByRole('button', { name: /Run in TripRescue recovery/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Run in SafarSathi recovery/ }));
     await waitFor(() => expect(triggerDisruption).toHaveBeenCalledWith('flight-delay', { primaryNodeId: 'node-flight', delayMinutes: 132 }));
     expect(navigate).toHaveBeenCalledWith('recovery');
   });

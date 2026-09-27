@@ -21,7 +21,7 @@ import httpx
 
 from app.config import get_settings
 
-logger = logging.getLogger("triprescue.nugen")
+logger = logging.getLogger("safarsathi.nugen")
 
 CHAT_PATH = "/api/v3/inference/chat/completions"
 RATE_LIMIT_COOLDOWN_SECONDS = 60

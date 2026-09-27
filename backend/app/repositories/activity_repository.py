@@ -10,7 +10,7 @@ from app.models.notification import Notification
 from app.repositories.trip_repository import TripRepository
 from app.services.email_service import send_notification_email
 
-logger = logging.getLogger("triprescue.email")
+logger = logging.getLogger("safarsathi.email")
 
 # Notification emails queued on a session, sent only once that session's
 # transaction commits - so a rolled-back notification never emails anyone.

@@ -15,7 +15,7 @@ describe('LoginScreen demo traveler', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Continue as Demo Traveler/ }));
 
     expect(await screen.findByText('Production mode active')).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent('Production mode active — please create a new account or use Explore Offline Demo');
+    expect(screen.getByRole('alert')).toHaveTextContent('The demo traveler is not available on this server. Please create a new account or sign in.');
     expect(screen.queryByText(/not seeded/)).not.toBeInTheDocument();
   });
 });

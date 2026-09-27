@@ -1,7 +1,8 @@
 """Background risk prediction.
 
-Every RISK_PREDICTION_INTERVAL_MINUTES the scheduler re-scores every trip
-that isn't RECOVERED, compares the result
+Every RISK_PREDICTION_INTERVAL_MINUTES the scheduler re-scores every active
+trip (DISRUPTED and RECOVERED trips are skipped - an open disruption already
+has the traveler's attention), compares the result
 with the trip's latest RiskSnapshots and raises a RISK notification plus a
 MONITORING activity event when things got worse:
 
@@ -19,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
+from app.core.datetime_utils import utcnow_naive
 
 from sqlalchemy.orm import Session
 
@@ -32,7 +34,7 @@ from app.repositories.risk_snapshot_repository import RiskSnapshotRepository
 from app.repositories.trip_repository import TripRepository
 from app.services.risk_service import get_risk_analysis
 
-logger = logging.getLogger("triprescue.risk_prediction")
+logger = logging.getLogger("safarsathi.risk_prediction")
 
 CARD_WORSENING_POINTS = 10
 WEATHER_WORSENING_POINTS = 15
@@ -77,7 +79,7 @@ def predict_trip(db: Session, trip: Trip) -> list[Notification]:
                 high = high or analysis.score.weather_risk >= 50
 
     notifications: list[Notification] = []
-    now = datetime.utcnow()
+    now = utcnow_naive()
     if reasons:
         summary = "; ".join(reasons)
         notification = Notification(

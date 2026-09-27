@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { DisruptionModal } from './DisruptionModal';
 import * as AppContextModule from '@/store/AppContext';
 import * as api from '@/services/api';
@@ -70,5 +70,60 @@ describe('DisruptionModal', () => {
 
     await waitFor(() => expect(api.simulateDisruption).toHaveBeenLastCalledWith('trip-1', expect.objectContaining({ delayMinutes: 120 })));
     expect(api.simulateDisruption).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('DisruptionModal voice reporting', () => {
+  class FakeRecognition {
+    static last: FakeRecognition | null = null;
+    lang = '';
+    interimResults = true;
+    continuous = true;
+    onresult: ((e: { results: { transcript: string }[][] }) => void) | null = null;
+    onerror: ((e: { error: string }) => void) | null = null;
+    onend: (() => void) | null = null;
+    start = vi.fn(() => { FakeRecognition.last = this; });
+    stop = vi.fn(() => this.onend?.());
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('hides the mic where the browser has no speech recognition', () => {
+    render(<DisruptionModal open onClose={() => {}} />);
+    expect(screen.queryByRole('button', { name: 'Speak your report' })).toBeNull();
+  });
+
+  it('fills the report from speech, then analyzes it like typed text', async () => {
+    vi.stubGlobal('webkitSpeechRecognition', FakeRecognition);
+    vi.mocked(api.extractDisruption).mockResolvedValue({
+      type: 'flight-delay', delayMinutes: 120, flightNumber: null, gate: null, primaryNodeId: 'bom-del', primaryNodeLabel: 'Mumbai → Delhi',
+      nodeId: 'bom-del', confidence: 0.9, matchedSignals: [], summary: 'Mumbai → Delhi delayed by 120 min', source: 'fallback',
+    } as unknown as api.DisruptionExtraction);
+    render(<DisruptionModal open onClose={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Speak your report' }));
+    expect(screen.getByRole('button', { name: 'Stop listening' })).toHaveAttribute('aria-pressed', 'true');
+    const rec = FakeRecognition.last!;
+    expect(rec.lang).toBe('en-IN');
+    act(() => {
+      rec.onresult?.({ results: [[{ transcript: 'my Mumbai flight is delayed by 2 hours' }]] });
+      rec.onend?.();
+    });
+
+    expect(screen.getByLabelText('Describe what happened')).toHaveValue('my Mumbai flight is delayed by 2 hours');
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze' }));
+    await waitFor(() => expect(api.extractDisruption).toHaveBeenCalledWith('my Mumbai flight is delayed by 2 hours', 'trip-1'));
+  });
+
+  it('explains a blocked microphone', () => {
+    vi.stubGlobal('webkitSpeechRecognition', FakeRecognition);
+    render(<DisruptionModal open onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Speak your report' }));
+    act(() => {
+      FakeRecognition.last!.onerror?.({ error: 'not-allowed' });
+      FakeRecognition.last!.onend?.();
+    });
+    expect(screen.getByText(/Microphone access was blocked/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Speak your report' })).toBeInTheDocument();
   });
 });

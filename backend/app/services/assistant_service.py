@@ -21,11 +21,11 @@ from app.repositories.recovery_repository import RecoveryRepository
 from app.models.enums import DisruptionType
 from app.schemas.assistant import AssistantReference, AssistantResponse, DisruptionExtractResponse
 from app.schemas.recovery import RecoveryNarrativeOut
-from app.services import disruption_extraction, recovery_narrative, recovery_service
+from app.services import disruption_extraction, nugen_service, recovery_narrative, recovery_service
 from app.services.risk_service import get_risk_analysis
 from app.services.trip_service import get_trip, get_trip_out
 
-logger = logging.getLogger("triprescue.assistant")
+logger = logging.getLogger("safarsathi.assistant")
 
 
 def _gather_context(db: Session, trip_id: str, traveler_id: str | None = None) -> dict:
@@ -303,7 +303,7 @@ def _llm_answer(context: dict, message: str, db: Session, trip_id: str, traveler
         ]
 
         system_prompt = (
-            "You are the TripRescue assistant. Answer ONLY using the JSON trip data provided. "
+            "You are the SafarSathi assistant. Answer ONLY using the JSON trip data provided. "
             "Never invent bookings, prices, or times that are not in the data. Be concise and specific, "
             "citing actual numbers from the data. "
             "You may call get_impact or list_recovery_options to fetch live data if the trip data "
@@ -403,27 +403,37 @@ def answer_question(db: Session, trip_id: str, message: str, traveler_id: str | 
 # ---- Recovery narrative -------------------------------------------------------
 
 
-def generate_recovery_narrative(trip, disruption, recovery_options, preferences: dict | None) -> str:
+def generate_recovery_narrative(trip, disruption, recovery_options, preferences: dict | None) -> tuple[str, str]:
     """Explain why the recovery options are ranked as they are, in terms of the
-    traveler's preferences. Uses Claude when ANTHROPIC_API_KEY is configured and
-    otherwise (or on any LLM failure) a deterministic comparison of cost deltas,
-    arrival impact, preserved bookings and residual risk - it never raises."""
+    traveler's preferences, and say who wrote it. Tries the Nugen-aligned travel
+    model first, then Claude, then a deterministic comparison of cost deltas,
+    arrival impact, preserved bookings and residual risk - it never raises.
+
+    Returns (text, source) with source "nugen", "llm" or "deterministic"."""
     label = getattr(disruption, "label", None)
     options = list(recovery_options or [])
     fallback = recovery_narrative.narrative(label, options, preferences)
+    ranked = recovery_narrative.rank(options)
+    if not ranked:
+        return fallback, "deterministic"
+    grounded = {
+        "trip": getattr(trip, "name", ""),
+        "disruption": label,
+        "traveler_priorities": recovery_narrative.describe_preferences(preferences),
+        "options_ranked": [vars(o) for o in ranked],
+        "deterministic_explanation": fallback,
+    }
+
+    text = nugen_service.explain_recovery_ranking(grounded)
+    if text:
+        return text, "nugen"
+
     settings = get_settings()
-    if not settings.anthropic_api_key or not recovery_narrative.rank(options):
-        return fallback
+    if not settings.anthropic_api_key:
+        return fallback, "deterministic"
     try:
         import anthropic
 
-        grounded = {
-            "trip": getattr(trip, "name", ""),
-            "disruption": label,
-            "traveler_priorities": recovery_narrative.describe_preferences(preferences),
-            "options_ranked": [vars(o) for o in recovery_narrative.rank(options)],
-            "deterministic_explanation": fallback,
-        }
         client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         response = client.messages.create(
             model=settings.anthropic_model,
@@ -436,10 +446,10 @@ def generate_recovery_narrative(trip, disruption, recovery_options, preferences:
             messages=[{"role": "user", "content": f"{grounded}"}],
         )
         text = response.content[0].text.strip() if response.content else ""
-        return text or fallback
+        return (text, "llm") if text else (fallback, "deterministic")
     except Exception:
         logger.warning("LLM narrative failed; using deterministic narrative.", exc_info=True)
-        return fallback
+        return fallback, "deterministic"
 
 
 def get_recovery_narrative(db: Session, trip_id: str, traveler_id: str | None = None) -> RecoveryNarrativeOut:
@@ -455,14 +465,13 @@ def get_recovery_narrative(db: Session, trip_id: str, traveler_id: str | None = 
             narrative=None,
             source="deterministic",
         )
-    text = generate_recovery_narrative(context["trip"], disruption, options, preferences)
-    deterministic = text == recovery_narrative.narrative(disruption.label, options, preferences)
+    text, source = generate_recovery_narrative(context["trip"], disruption, options, preferences)
     return RecoveryNarrativeOut(
         executive_summary=recovery_narrative.executive_summary(disruption.label, options),
         narrative=text,
         top_option_id=ranked[0].id if ranked else None,
         option_notes=recovery_narrative.option_notes(options, preferences),
-        source="deterministic" if deterministic else "llm",
+        source=source,
     )
 
 

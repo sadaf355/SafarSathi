@@ -69,5 +69,5 @@ def twin_state(traveler_id: str = Depends(get_current_traveler_id)):
         "engine": "weather_digital_twin",
         "nugen_enabled": bool(settings.nugen_api_key),
         "nugen_model": settings.nugen_model_id,
-        "active_simulations_cached": len(digital_twin_service._simulations),
+        "active_simulations_cached": len(digital_twin_service._store),
     }

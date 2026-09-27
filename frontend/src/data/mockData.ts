@@ -4,8 +4,7 @@ import type { DisruptionType, TravelerPreferences } from '@/types';
  * picker's catalogue), `defaultPreferences` (AppContext's pre-load fallback) and
  * `nodePositions` (the hand-tuned Ladakh graph layout; ItineraryGraph falls back
  * to `graphLayout.ts`'s auto-layout for any node set this doesn't cover). Trip,
- * booking and recovery data always come from the backend - or, in the offline
- * demo, from services/demoBackend.ts. */
+ * booking and recovery data always come from the backend. */
 
 export const disruptionTypes: DisruptionType[] = [
   { id: 'flight-delay', label: 'Flight Delay', description: 'Delay an existing flight by a specified duration', icon: 'clock' },

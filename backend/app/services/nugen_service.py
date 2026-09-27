@@ -27,7 +27,7 @@ from app.core.nugen_client import NugenClient
 from app.engines.digital_twin_engine import TwinRun, WeatherScenario, mode_of
 from app.core.pipeline_trace import traced
 
-logger = logging.getLogger("triprescue.nugen")
+logger = logging.getLogger("safarsathi.nugen")
 
 SYSTEM_PROMPT = (
     "You are Safar Sathi's travel-disruption reasoning model. You receive a multi-leg itinerary, a weather "
@@ -40,6 +40,13 @@ MITIGATION_PROMPT = (
     "You are Safar Sathi's logistics model. From the JSON of at-risk connections, give 2-4 short, specific "
     "preemptive actions (one per line, no numbering) such as rebooking or widening a buffer, citing the minutes "
     "and legs involved. Use ONLY facts in the JSON."
+)
+
+RECOVERY_PROMPT = (
+    "You are Safar Sathi's travel-disruption reasoning model. You receive a disruption, the traveler's priorities and "
+    "the recovery options Safar Sathi's engine ranked, as JSON. In 3-5 sentences explain why the top option fits the "
+    "traveler's priorities and what each alternative trades off. Use ONLY facts in the JSON; never invent prices, "
+    "times, bookings or providers."
 )
 
 _client: NugenClient | None = None
@@ -184,6 +191,19 @@ def explain_weather_cascade(itinerary: list, weather_scenario: WeatherScenario, 
             return Reasoning(text=text, source="nugen", model=c.model_id)
         logger.info("Nugen unavailable (%s); using heuristic cascade explanation", c.last_error)
     return Reasoning(text=heuristic_explanation(ctx), source="heuristic")
+
+
+@traced("intelligence", "Nugen: explain recovery ranking")
+def explain_recovery_ranking(grounded: dict) -> str | None:
+    """Nugen narrative for a ranked set of recovery options, or None when Nugen
+    is not configured or unavailable (the caller then falls back)."""
+    c = client()
+    if not c.configured:
+        return None
+    text = c.chat(RECOVERY_PROMPT, json.dumps(grounded, ensure_ascii=False, default=str), max_tokens=350)
+    if not text:
+        logger.info("Nugen unavailable (%s); falling back for the recovery narrative", c.last_error)
+    return text
 
 
 @traced("intelligence", "Nugen: mitigation guidance", detail=lambda r, a, k: {"source": r[1], "tips": len(r[0])})

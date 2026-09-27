@@ -46,7 +46,7 @@ def smtp_enabled(monkeypatch):
 
 def test_disabled_email_is_logged_not_sent(caplog, monkeypatch):
     monkeypatch.setattr(email_service.smtplib, "SMTP", lambda *a, **k: pytest.fail("network used"))
-    with caplog.at_level(logging.INFO, logger="triprescue.email"):
+    with caplog.at_level(logging.INFO, logger="safarsathi.email"):
         assert email_service.send_notification_email("a@b.com", "Hello", "Body") is None
     assert "Email (not sent)" in caplog.text and "Hello" in caplog.text
 
@@ -65,7 +65,7 @@ def test_smtp_failure_is_swallowed(smtp_enabled):
 
 
 def test_disruption_and_recovery_emails_are_dispatched(client, caplog):
-    with caplog.at_level(logging.INFO, logger="triprescue.email"):
+    with caplog.at_level(logging.INFO, logger="safarsathi.email"):
         client.post("/api/trips/trip-ladakh-2025/disruptions", json={"type": "flight-delay", "delayMinutes": 180})
         options = client.post("/api/trips/trip-ladakh-2025/recovery-options/generate").json()
         plan = next(o for o in options if o["feasible"])

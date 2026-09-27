@@ -21,7 +21,7 @@ from app.providers.mock_flight_provider import MockFlightProvider
 from app.providers.mock_hotel_provider import MockHotelProvider
 from app.providers.mock_transfer_provider import MockTransferProvider
 
-logger = logging.getLogger("triprescue.providers")
+logger = logging.getLogger("safarsathi.providers")
 
 
 @dataclass(frozen=True)

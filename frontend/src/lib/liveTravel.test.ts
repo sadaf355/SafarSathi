@@ -1,6 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { Attraction, Hotel, LiveTransport, TrainBetween, TravelEvent } from '@/services/api';
-import * as api from '@/services/api';
 import {
   attractionToItem,
   betweenTrainToItem,
@@ -89,12 +88,3 @@ describe('live baseline + simulation', () => {
   });
 });
 
-describe('demo mode', () => {
-  afterEach(() => api.setDataMode('live'));
-
-  it('refuses live searches instead of showing simulated data as live', async () => {
-    api.setDataMode('demo');
-    await expect(api.searchHotels({ city: 'Goa' })).rejects.toThrow(api.LIVE_DEMO_MESSAGE);
-    await expect(api.searchLiveFlights({ flightNumber: 'AI101' })).rejects.toMatchObject({ status: 503 });
-  });
-});

@@ -1,12 +1,20 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DigitalTwinPage } from './DigitalTwinPage';
 import { ToastProvider } from '@/components/ui/ToastProvider';
 import * as AppContextModule from '@/store/AppContext';
 import * as api from '@/services/api';
-import { demoBackend } from '@/services/demoBackend';
+import fixtures from '@/test/fixtures/ladakh.json';
 import type { Trip } from '@/types';
 
+// Responses captured from the real backend (see src/test/fixtures/README.md).
+vi.mock('@/services/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/api')>()),
+  getTripWeather: vi.fn(),
+  getSocialSignals: vi.fn(),
+  simulateDigitalTwin: vi.fn(),
+  applyDigitalTwin: vi.fn(),
+}));
 vi.mock('@/store/AppContext', () => ({ useApp: vi.fn() }));
 vi.mock('@/lib/router', () => ({ useRouter: () => ({ navigate: vi.fn(), route: 'digital-twin', params: {}, consumeParams: vi.fn() }) }));
 // Leaflet needs a real layout engine; the overlay gets its own props checked instead.
@@ -16,15 +24,17 @@ vi.mock('@/components/map/DigitalTwinMapOverlay', () => ({
   ),
 }));
 
-const HERO = 'demo-golden-triangle';
+const simulation = fixtures.fogSimulation as unknown as api.DigitalTwinSimulation;
 let trip: Trip;
-const reload = vi.fn(async () => { trip = await demoBackend.getItinerary(HERO); });
+const reload = vi.fn(async () => {});
 
-beforeAll(() => api.setDataMode('demo'));
-afterAll(() => api.setDataMode('live'));
-beforeEach(async () => {
-  trip = await demoBackend.resetTrip(HERO);
+beforeEach(() => {
+  trip = structuredClone(fixtures.trip) as unknown as Trip;
   reload.mockClear();
+  vi.mocked(api.getTripWeather).mockResolvedValue(fixtures.tripWeather as unknown as api.TripWeather);
+  vi.mocked(api.getSocialSignals).mockResolvedValue(fixtures.socialSignals as unknown as api.SocialSignals);
+  vi.mocked(api.simulateDigitalTwin).mockResolvedValue(simulation);
+  vi.mocked(api.applyDigitalTwin).mockReset().mockResolvedValue(fixtures.fogApply as unknown as api.DigitalTwinApplyResult);
   vi.mocked(AppContextModule.useApp).mockImplementation(() => ({ trip, reload }) as unknown as ReturnType<typeof AppContextModule.useApp>);
 });
 
@@ -39,7 +49,7 @@ describe('DigitalTwinPage', () => {
     }
     expect(screen.getByTestId('twin-map')).toHaveAttribute('data-hits', '0');
     expect(await screen.findByText(/Forecast exposure/)).toBeInTheDocument();
-    // The source pill reflects the loaded feed (the offline demo only has simulated signals).
+    // The source pill reflects the loaded feed (this fixture was captured with live signals off).
     expect(await screen.findByText('Simulated')).toBeInTheDocument();
     expect(screen.queryByText('Live · Mastodon')).toBeNull();
   });
@@ -72,7 +82,8 @@ describe('DigitalTwinPage', () => {
 
     await waitFor(() => expect(reload).toHaveBeenCalled(), { timeout: 4000 });
     expect(await screen.findByText(/Live itinerary updated and re-validated/)).toBeInTheDocument();
-    expect((await demoBackend.getItinerary(HERO)).nodes.some((n) => n.status === 'recovered')).toBe(true);
+    const recommended = simulation.options.find((o) => o.recommended)!;
+    expect(api.applyDigitalTwin).toHaveBeenCalledWith(trip.id, simulation.simulationId, recommended.id);
   });
 
   it('blocks applying a weather plan while a disruption is active', async () => {

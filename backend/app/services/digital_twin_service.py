@@ -15,6 +15,7 @@ import uuid
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from app.core.datetime_utils import utcnow_naive
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -86,7 +87,7 @@ def _fingerprint(nodes: list) -> str:
 
 def _remember(entry: _Stored) -> str:
     sim_id = f"twin_{uuid.uuid4().hex[:16]}"
-    now = datetime.utcnow()
+    now = utcnow_naive()
     with _lock:
         for key in [k for k, v in _store.items() if v.expires_at < now]:
             del _store[key]
@@ -153,7 +154,7 @@ def simulate(db: Session, trip_id: str, traveler_id: str | None, request: Digita
     coords = weather_service.node_coordinates(db_nodes)
     live = _live_summary(trip, db_nodes)
     twin = _twin_summary(engine_nodes, run)
-    now = datetime.utcnow()
+    now = utcnow_naive()
     sim_id = _remember(_Stored(trip_id, traveler_id, _fingerprint(db_nodes), {o.id: o for o in options}, now + TTL))
 
     return DigitalTwinSimulationOut(
@@ -185,7 +186,7 @@ def apply(db: Session, trip_id: str, traveler_id: str | None, simulation_id: str
     trip = get_trip(db, trip_id, traveler_id)
     with _lock:
         stored = _store.get(simulation_id)
-    if stored is None or stored.trip_id != trip_id or stored.expires_at < datetime.utcnow() or option_id not in stored.options:
+    if stored is None or stored.trip_id != trip_id or stored.expires_at < utcnow_naive() or option_id not in stored.options:
         raise SimulationNotFoundError(simulation_id)
     if DisruptionRepository(db).latest_unresolved(trip_id) is not None:
         raise ActiveDisruptionError(trip_id)

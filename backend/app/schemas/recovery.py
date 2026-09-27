@@ -48,7 +48,7 @@ class RecoveryNarrativeOut(CamelModel):
     narrative: str | None = None
     top_option_id: str | None = None
     option_notes: dict[str, str] = {}
-    source: Literal["llm", "deterministic"] = "deterministic"
+    source: Literal["nugen", "llm", "deterministic"] = "deterministic"
 
 
 class ApplyRecoveryRequest(CamelModel):

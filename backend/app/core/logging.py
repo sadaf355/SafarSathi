@@ -78,8 +78,8 @@ def init_sentry(dsn: str | None, environment: str, traces_sample_rate: float = 0
         import sentry_sdk
 
         sentry_sdk.init(dsn=dsn, environment=environment, traces_sample_rate=traces_sample_rate, send_default_pii=False)
-        logging.getLogger("triprescue").info("Sentry error tracking enabled")
+        logging.getLogger("safarsathi").info("Sentry error tracking enabled")
         return True
     except Exception:
-        logging.getLogger("triprescue").warning("Sentry initialisation failed; continuing without it.", exc_info=True)
+        logging.getLogger("safarsathi").warning("Sentry initialisation failed; continuing without it.", exc_info=True)
         return False

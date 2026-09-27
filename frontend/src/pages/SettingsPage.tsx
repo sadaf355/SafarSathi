@@ -150,15 +150,15 @@ function SettingsSection({ icon, title, children }: { icon: React.ReactNode; tit
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="text-[10px] text-ink-muted mb-1">{label}</div>
+    <label className="block">
+      <span className="mb-1 block text-[10px] text-ink-muted">{label}</span>
       <input
         type="text"
         value={value}
         readOnly
-        className="w-full cursor-default rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-ink-soft focus:outline-none"
+        className="w-full cursor-default rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-ink-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-safar-blue"
       />
-    </div>
+    </label>
   );
 }
 
@@ -166,7 +166,7 @@ function SliderControl({ label, leftLabel, rightLabel, value, onChange }: { labe
   return (
     <div>
       <div className="text-xs font-medium text-ink mb-2">{label}</div>
-      <input type="range" min={0} max={100} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full" style={{ accentColor: '#2563EB' }} />
+      <input type="range" min={0} max={100} value={value} onChange={(e) => onChange(Number(e.target.value))} aria-label={label} className="w-full" style={{ accentColor: '#2563EB' }} />
       <div className="mt-1 flex items-center justify-between text-[10px] text-ink-muted">
         <span>{leftLabel}</span>
         <span>{rightLabel}</span>
@@ -178,8 +178,11 @@ function SliderControl({ label, leftLabel, rightLabel, value, onChange }: { labe
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-white p-3 text-left transition hover:bg-canvas"
+      className="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-white p-3 text-left transition hover:bg-canvas focus:outline-none focus-visible:ring-2 focus-visible:ring-safar-blue"
     >
       <span className="text-xs text-ink-soft">{label}</span>
       <span className={cn(

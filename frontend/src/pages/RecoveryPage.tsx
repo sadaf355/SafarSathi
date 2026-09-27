@@ -16,7 +16,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 import { formatDateRange, formatINR, tripType } from '@/lib/journey';
 import { optionRoute, priorityOf, priorityPresets, rankOptions, type Priority } from '@/lib/recovery';
-import { toConciseLine } from '@/lib/concise';
+import { toConciseBullets, toConciseLine } from '@/lib/concise';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, ArrowRight, CheckCircle2, CircleDashed, Columns2, Loader2, RotateCcw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 
@@ -164,8 +164,18 @@ export function RecoveryPage() {
               <section className="ai-surface flex items-start gap-3 p-4" aria-live="polite">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-ai shadow-card"><Sparkles className="h-4 w-4" /></span>
                 <div className="min-w-0 text-sm">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-ai">Why these recommendations{summary.source === 'llm' ? ' · AI' : ''}</div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-ai">Why these recommendations{summary.source === 'nugen' ? ' · Nugen' : summary.source === 'llm' ? ' · AI' : ''}</div>
                   <p className="mt-1 font-semibold text-ink">{toConciseLine(summary.executiveSummary.match(/Recommended:[\s\S]*$/)?.[0] ?? summary.executiveSummary, 150)}</p>
+                  {summary.narrative && (
+                    <ul className="mt-2 space-y-1">
+                      {toConciseBullets(summary.narrative, 3).map((item) => (
+                        <li key={item} className="flex items-start gap-2 text-xs text-ink-soft">
+                          <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-ai" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </section>
             )}

@@ -13,7 +13,7 @@ from starlette.responses import Response
 
 from app.core.logging import request_id_var
 
-logger = logging.getLogger("triprescue.http")
+logger = logging.getLogger("safarsathi.http")
 
 
 class RequestTimingMiddleware(BaseHTTPMiddleware):

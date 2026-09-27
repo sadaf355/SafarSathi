@@ -19,7 +19,7 @@ export function AddToTripButton({ state, add, build, label = 'Add to Trip', clas
   const onClick = async () => {
     const outcome = await add(build);
     if (outcome.state === 'error') addToast('error', 'Not added', outcome.message);
-    else if (outcome.state === 'added') addToast('success', 'Added to your trip', 'It now appears in your itinerary and is monitored by TripRescue.');
+    else if (outcome.state === 'added') addToast('success', 'Added to your trip', 'It now appears in your itinerary and is monitored by SafarSathi.');
   };
 
   return (

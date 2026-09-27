@@ -21,7 +21,7 @@ from app.database.session import SessionLocal, engine, resolved_url
 # Import models so they register on Base.metadata before create_all runs.
 from app import models  # noqa: F401
 
-logger = logging.getLogger("triprescue")
+logger = logging.getLogger("safarsathi")
 
 
 @asynccontextmanager
@@ -72,7 +72,7 @@ settings = get_settings()
 configure_logging(settings.log_format, settings.log_level)
 init_sentry(settings.sentry_dsn, settings.environment, settings.sentry_traces_sample_rate)
 
-app = FastAPI(title="TripRescue API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="SafarSathi API", version="0.1.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_middleware(RequestTimingMiddleware)
 app.add_middleware(PipelineTraceMiddleware)  # no-op unless a request carries X-Pipeline-Run
@@ -80,6 +80,7 @@ app.add_middleware(PipelineTraceMiddleware)  # no-op unless a request carries X-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

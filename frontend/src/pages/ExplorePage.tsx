@@ -212,7 +212,7 @@ export function ExplorePage() {
       />
       <div className="relative z-10 space-y-5">
         <QuickAddBar active={tab} onSelect={setTab} />
-        <p className="text-xs text-ink-muted">Adding to <b className="text-ink">{trip.name || 'your trip'}</b>. Items join your itinerary and TripRescue monitoring; nothing is booked or paid for.</p>
+        <p className="text-xs text-ink-muted">Adding to <b className="text-ink">{trip.name || 'your trip'}</b>. Items join your itinerary and SafarSathi monitoring; nothing is booked or paid for.</p>
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <section className="card min-w-0 p-5" aria-label="Results">

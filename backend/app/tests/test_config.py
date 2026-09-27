@@ -13,8 +13,8 @@ def _settings(**overrides) -> Settings:
 
 class TestResolvedDatabaseUrl:
     def test_sqlite_url_passes_through_unchanged(self):
-        settings = _settings(database_url="sqlite:///./triprescue.db")
-        assert settings.resolved_database_url == "sqlite:///./triprescue.db"
+        settings = _settings(database_url="sqlite:///./safarsathi.db")
+        assert settings.resolved_database_url == "sqlite:///./safarsathi.db"
 
     def test_legacy_postgres_scheme_is_rewritten_to_psycopg3(self):
         settings = _settings(database_url="postgres://user:pw@host:5432/dbname")

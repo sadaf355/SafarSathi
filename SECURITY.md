@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-TripRescue actively maintains security patches and updates for the following versions:
+SafarSathi actively maintains security patches and updates for the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
@@ -13,7 +13,7 @@ TripRescue actively maintains security patches and updates for the following ver
 
 ## Security Architecture & Controls
 
-TripRescue is engineered with security and tenant isolation by design:
+SafarSathi is engineered with security and tenant isolation by design:
 
 1. **Authentication & Session Token Verification**:
    - Sessions use a small, stdlib-only signed token (`traveler_id:issued_at:signature`, base64-encoded), HMAC-signed with SHA-256 using `AUTH_SECRET`, and verified with `hmac.compare_digest` (constant-time comparison) - see `app/services/auth_service.py`. This is a custom scheme, not a JWT library, to keep the dependency footprint minimal.
@@ -41,10 +41,10 @@ TripRescue is engineered with security and tenant isolation by design:
 
 ## Reporting a Vulnerability
 
-If you discover a potential security vulnerability in TripRescue, please report it responsibly:
+If you discover a potential security vulnerability in SafarSathi, please report it responsibly:
 
-- **Email**: `daanialmirza@gmail.com`
-- **Subject**: `[TripRescue Security Disclosure] <Short Description>`
+- **Email**: `your-team-email@example.com` (⚠️ TODO: replace with your real contact email before publishing)
+- **Subject**: `[SafarSathi Security Disclosure] <Short Description>`
 - Please include steps to reproduce, expected vs actual behavior, and potential impact.
 
 We appreciate your responsible disclosure and will respond promptly to investigate and patch confirmed issues.

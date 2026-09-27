@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     environment: str = "development"
-    database_url: str = "sqlite:///./triprescue.db"
+    database_url: str = "sqlite:///./safarsathi.db"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-5"
@@ -49,9 +49,6 @@ class Settings(BaseSettings):
     # --- Background risk prediction ---
     risk_prediction_enabled: bool = False
     risk_prediction_interval_minutes: int = 15
-    # --- Geocoding (Nominatim) for POST /api/geocode. ---
-    geocoding_request_timeout_seconds: float = 3.0
-    geocoding_contact: str | None = None
 
     # --- Transactional email. Disabled = emails are logged, never sent. ---
     email_notifications_enabled: bool = False

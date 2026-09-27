@@ -9,8 +9,8 @@ export const SOURCE_LABEL: Record<string, string> = {
   railradar: 'RailRadar',
   openstreetmap: 'OpenStreetMap',
   ticketmaster: 'Ticketmaster',
-  internal: 'TripRescue',
-  simulation: 'TripRescue Demo',
+  internal: 'SafarSathi',
+  simulation: 'SafarSathi Demo',
 };
 
 export const STATUS_LABEL: Record<TransportStatus, string> = {

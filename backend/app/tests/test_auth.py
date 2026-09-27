@@ -221,5 +221,5 @@ def test_register_accepts_a_strong_password_and_it_can_log_in(client):
 
 def test_existing_accounts_can_still_log_in_regardless_of_strength(client):
     # The rule applies to new passwords only; the seeded demo account keeps working.
-    resp = client.post("/api/auth/login", json={"email": "aisha.khan@example.com", "password": "triprescue-demo"})
+    resp = client.post("/api/auth/login", json={"email": "aisha.khan@example.com", "password": "safarsathi-demo"})
     assert resp.status_code == 200
