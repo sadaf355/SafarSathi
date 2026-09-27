@@ -11,4 +11,4 @@ def test_anonymous_request_rejected_when_require_authentication_enabled(client, 
     resp = client.get("/api/trips")
 
     assert resp.status_code == 401
-    assert resp.json()["detail"] == "Authentication required."
+    assert resp.json()["detail"] == "Authentication required"

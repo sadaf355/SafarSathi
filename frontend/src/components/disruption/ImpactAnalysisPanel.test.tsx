@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { ImpactAnalysisPanel } from './ImpactAnalysisPanel';
+import { ToastProvider } from '@/components/ui/ToastProvider';
 import * as AppContextModule from '@/store/AppContext';
 import type { Disruption, Trip } from '@/types';
 
@@ -109,5 +110,35 @@ describe('ImpactAnalysisPanel Component', () => {
     expect(screen.getByText(/Flight AI-445 departure delayed by 180 minutes/)).toBeInTheDocument();
     expect(screen.getByText(/Missed airport prepaid cab transfer in Leh/)).toBeInTheDocument();
     vi.useRealTimers();
+  });
+
+  it('shows the backend narrative when the disruption carries one', () => {
+    vi.mocked(AppContextModule.useApp).mockReturnValue({
+      activeDisruption: { ...mockDisruption, narrative: 'Because AI-445 runs late, the Leh transfer can no longer be made.' },
+      trip: mockTrip,
+      phase: 'analyzing',
+    } as unknown as MockAppContext);
+
+    render(<ImpactAnalysisPanel />);
+    expect(screen.getByText('Because AI-445 runs late, the Leh transfer can no longer be made.')).toBeInTheDocument();
+  });
+
+  it('reveals the dependency graph behind the "Why?" toggle', () => {
+    globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    vi.mocked(AppContextModule.useApp).mockReturnValue({
+      activeDisruption: mockDisruption,
+      trip: mockTrip,
+      phase: 'analyzing',
+    } as unknown as MockAppContext);
+
+    const { container } = render(<ToastProvider><ImpactAnalysisPanel /></ToastProvider>);
+    expect(container.querySelector('.react-flow')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /Why\? Show dependency view/ }));
+    expect(container.querySelector('.react-flow')).not.toBeNull();
+    expect(screen.getByText(/the graph is an explanation, not the primary interface/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Hide dependency view/ }));
+    expect(container.querySelector('.react-flow')).toBeNull();
   });
 });

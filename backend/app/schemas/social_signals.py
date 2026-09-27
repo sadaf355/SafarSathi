@@ -18,9 +18,11 @@ class SocialSignalOut(CamelModel):
     intensity: float  # 0..1, used to weight Digital Twin confidence
     text: str
     minutes_ago: int
-    # Signals are synthesized from live weather at each trip hub - there is no
-    # crowd-report data feed connected - and are always labelled as such.
-    source: Literal["simulated"] = "simulated"
+    # "mastodon": a real public post from a hub's hashtag timeline (see
+    # providers/mastodon_signal_provider.py). "simulated": synthesized from
+    # the weather at that hub when no real post is available. Always shown.
+    source: Literal["simulated", "mastodon"] = "simulated"
+    url: str | None = None  # link to the original post for real signals
 
 
 class SocialSignalsOut(CamelModel):

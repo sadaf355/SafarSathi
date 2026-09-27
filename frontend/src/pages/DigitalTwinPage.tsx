@@ -156,7 +156,12 @@ export function DigitalTwinPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <CloudSun className="h-5 w-5 text-brand" aria-hidden="true" />
                   <h2 id="exposure-title" className="section-title">Forecast exposure</h2>
-                  {weather && <span className="pill bg-canvas text-ink-muted">{weather.nodes.some((n) => n.source === 'open-meteo') ? 'Open-Meteo 7-day forecast' : 'Offline climatology'}</span>}
+                  <span className="pill bg-ai-light text-ai"><Layers className="h-3.5 w-3.5" aria-hidden="true" /> Digital Twin weather signal</span>
+                  {weather && <span className="pill bg-canvas text-ink-muted">{weather.nodes.some((n) => n.source === 'open-meteo')
+                    ? 'Open-Meteo 7-day forecast'
+                    : weather.nodes.some((n) => n.source === 'open-meteo-current')
+                      ? 'Open-Meteo live conditions (trip dates outside the forecast window)'
+                      : 'Offline climatology'}</span>}
                 </div>
                 <p className="mt-1 text-sm text-ink-muted">{weather?.summary ?? 'Checking the forecast for every booking…'}</p>
                 {exposed.length > 0 && (

@@ -4,6 +4,7 @@ Vulnerability Index (WVI): how exposed each kind of booking is to weather."""
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import Session
 
@@ -81,10 +82,21 @@ def node_coordinates(nodes: list) -> dict[str, tuple[float, float]]:
     return coords
 
 
+def _forecasts_for(points: set[tuple[float, float]]) -> dict[tuple[float, float], WeatherForecast]:
+    """One forecast per distinct location, fetched concurrently: a trip with
+    six stops costs one Open-Meteo round-trip of latency, not six. The provider
+    never raises (it falls back offline), so every point gets an answer."""
+    if not points:
+        return {}
+    with ThreadPoolExecutor(max_workers=min(6, len(points)), thread_name_prefix="trip-weather") as pool:
+        return dict(zip(points, pool.map(lambda p: get_forecast(*p), points)))
+
+
 def trip_weather(db: Session, trip_id: str, traveler_id: str | None = None) -> TripWeatherOut:
     get_trip(db, trip_id, traveler_id)
     nodes = NodeRepository(db).list_for_trip(trip_id)
     coords = node_coordinates(nodes)
+    forecasts = _forecasts_for(set(coords.values()))
     out: list[NodeWeatherOut] = []
     for n in nodes:
         wvi = vulnerability_index(n)
@@ -93,15 +105,23 @@ def trip_weather(db: Session, trip_id: str, traveler_id: str | None = None) -> T
             out.append(NodeWeatherOut(node_id=n.id, title=n.title, category=category_of(n), location=n.location,
                                       scheduled_start=n.scheduled_start, vulnerability_index=wvi, exposure=0, source="unavailable"))
             continue
-        forecast = get_forecast(*point)
-        hour = forecast.at(n.scheduled_start)
+        forecast = forecasts[point]
         in_range = bool(forecast.hourly) and forecast.hourly[0].time <= n.scheduled_start <= forecast.hourly[-1].time
+        if in_range:
+            hour, source = forecast.at(n.scheduled_start), forecast.source
+        elif forecast.source == "open-meteo":
+            # The booking is outside Open-Meteo's 7-day window (past trips, or
+            # far-future ones): show the live conditions at that place right now,
+            # labelled as such, rather than a synthetic guess for that hour.
+            hour, source = forecast.current, "open-meteo-current"
+        else:
+            hour, source = forecast.at(n.scheduled_start), "fallback"
         out.append(
             NodeWeatherOut(
                 node_id=n.id, title=n.title, category=category_of(n), location=n.location, lat=point[0], lng=point[1],
                 scheduled_start=n.scheduled_start, conditions=to_out(hour), vulnerability_index=wvi,
                 exposure=round(wvi * hour.risk_percent / 100),
-                source=forecast.source if in_range else "fallback",
+                source=source,
             )
         )
     worst = max(out, key=lambda o: o.exposure, default=None)

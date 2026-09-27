@@ -497,6 +497,12 @@ export const demoBackend = {
     return clone(state.options);
   },
 
+  async listRecoveryOptions(tripId: string) {
+    await wait(120);
+    const state = stateFor(tripId);
+    return state.disruption ? clone(state.options) : [];
+  },
+
   async applyRecovery(tripId: string, recoveryId: string) {
     await wait(900);
     const state = stateFor(tripId);
@@ -534,6 +540,7 @@ export const demoBackend = {
     state.activity.unshift(activityEvent);
     state.notifications.unshift(notification);
     state.disruption = null;
+    state.options = []; // applied: the plan can't be applied a second time
     return { trip: clone(state.trip), appliedRecovery: clone(option), activityEvent, notification };
   },
 

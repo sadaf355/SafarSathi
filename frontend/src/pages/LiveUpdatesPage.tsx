@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '@/store/AppContext';
 import { useRouter } from '@/lib/router';
 import { useAllTrips, useClock, useJourney, useRiskAnalysis, useStopWeather } from '@/hooks/useTravelData';
@@ -6,12 +6,14 @@ import { PageHero, LivePill } from '@/components/layout/PageHero';
 import { RouteMap, type MapLayers } from '@/components/travel/RouteMap';
 import { DestinationImage } from '@/components/travel/DestinationImage';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { ScoreRing } from '@/components/ui/ScoreRing';
+import { riskTone, toneClasses } from '@/lib/status';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { Modal } from '@/components/ui/Modal';
 import { sceneImages } from '@/lib/destinationImages';
 import { formatDateRange, formatTime, nodeKind, parseDate, routeCities, tripLifecycle } from '@/lib/journey';
 import { cn } from '@/lib/utils';
-import type { Alert, ItineraryNodeData, Trip } from '@/types';
+import type { Alert, ItineraryNodeData, RiskScore, Trip } from '@/types';
 import { AlertTriangle, ArrowRight, BedDouble, Car, Clock3, CloudSun, Plane, RadioTower, TrainFront, Wind } from 'lucide-react';
 
 interface LiveAlert extends Alert { kind: 'flight' | 'train' | 'weather' | 'airport' | 'hotel' | 'info' }
@@ -32,8 +34,15 @@ const layerTabs: { id: keyof MapLayers; label: string; icon: typeof Plane }[] = 
   { id: 'airports', label: 'Airports', icon: RadioTower },
 ];
 
+const riskBars: { key: Exclude<keyof RiskScore, 'tripResilience'>; label: string }[] = [
+  { key: 'connectionRisk', label: 'Connection risk' },
+  { key: 'scheduleRisk', label: 'Schedule risk' },
+  { key: 'weatherRisk', label: 'Weather risk' },
+  { key: 'vendorRisk', label: 'Vendor risk' },
+];
+
 export function LiveUpdatesPage() {
-  const { trip, notifications, switchTrip } = useApp();
+  const { trip, notifications, switchTrip, cascadeLinks } = useApp();
   const { navigate } = useRouter();
   const journey = useJourney();
   const { trips } = useAllTrips();
@@ -68,10 +77,26 @@ export function LiveUpdatesPage() {
   }, [risk, weather, notifications, trip.nodes]);
 
   const liveLegs = trip.nodes.filter((n) => n.category !== 'connection' && n.category !== 'activity' && n.category !== 'return');
+  // The hook keeps the previous data when a refetch fails, so check the error too.
+  const riskReady = !riskLoading && !riskError && risk !== null && risk.cards.length > 0;
+
+  // Cosmetic staged indicator for the Trip Risk loader: stages advance on fixed
+  // timers while the single risk request is in flight, not on backend progress.
+  const [riskStep, setRiskStep] = useState(0);
+  useEffect(() => {
+    if (!riskLoading) {
+      setRiskStep(4);
+      return;
+    }
+    setRiskStep(0);
+    const timers = [1, 2, 3].map((n, i) => window.setTimeout(() => setRiskStep(n), (i + 1) * 500));
+    return () => timers.forEach(clearTimeout);
+  }, [riskLoading]);
 
   return (
     <div className="animate-fade-in">
       <PageHero
+        crumbs={[{ label: 'Live Updates' }]}
         title="Live Travel Updates"
         titleAddon={<LivePill />}
         subtitle={<span className="text-[17px] sm:text-lg">Track your trips, check for disruptions, and stay ahead with live updates.</span>}
@@ -98,7 +123,10 @@ export function LiveUpdatesPage() {
       <div className="relative z-10 space-y-6">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
           {view === 'map' ? (
-            <RouteMap stops={journey.stops} legs={journey.legs} layers={layers} weather={weather} maxZoom={5} className="h-[420px] rounded-card shadow-card sm:h-[480px]">
+            <RouteMap stops={journey.stops} legs={journey.legs} layers={layers} weather={weather} maxZoom={5}
+              nodePositions={trip.nodes.map((n) => ({ id: n.id, lat: n.lat ?? null, lng: n.lng ?? null }))}
+              cascade={cascadeLinks ?? undefined}
+              className="h-[420px] rounded-card shadow-card sm:h-[480px]">
               <div className="absolute left-4 top-4 z-[500] flex max-w-[calc(100%-2rem)] gap-1 overflow-x-auto rounded-2xl border border-white/60 bg-white/90 p-1.5 shadow-card backdrop-blur scrollbar-none" role="group" aria-label="Map layers">
                 {layerTabs.map(({ id, label, icon: Icon }) => (
                   <button key={id} aria-pressed={layers[id]} onClick={() => setLayers((l) => ({ ...l, [id]: !l[id] }))}
@@ -142,6 +170,44 @@ export function LiveUpdatesPage() {
           </section>
         </div>
 
+        {(riskLoading || riskReady) && (
+          <section className="card p-5" aria-labelledby="trip-risk-title">
+            <h2 id="trip-risk-title" className="section-title text-xl">Trip Risk</h2>
+            {riskLoading ? (
+              <div className="mt-4"><LoadingRisk step={riskStep} /></div>
+            ) : risk && (
+            <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+              <div className="flex flex-col items-center gap-5 sm:flex-row lg:flex-col lg:items-stretch">
+                <ScoreRing score={risk.score.tripResilience} size={104} strokeWidth={11} gradient label="Resilience" valueClassName="text-[22px]" className="shrink-0 self-center" />
+                <ul className="w-full space-y-3">
+                  {riskBars.map(({ key, label }) => (
+                    <li key={key} className="flex items-center gap-3 text-sm">
+                      <span className="w-32 shrink-0 text-ink-soft">{label}</span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-canvas"><div className="h-full rounded-full bg-brand-gradient" style={{ width: `${risk.score[key]}%` }} /></div>
+                      <span className="w-8 text-right text-xs tabular-nums text-ink-muted">{risk.score[key]}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <ul className="space-y-3">
+                {risk.cards.map((c) => (
+                  <li key={`${c.nodeId}-${c.riskType}`} className="rounded-xl border border-line p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-ink">{c.nodeLabel}</div>
+                        <div className="eyebrow mt-0.5">{c.riskType}</div>
+                      </div>
+                      <span className={cn('pill tabular-nums', toneClasses[riskTone[c.riskLevel] ?? 'muted'].pill)}>{c.riskPercent}%</span>
+                    </div>
+                    <p className="mt-2 text-xs text-ink-muted">{c.recommendation}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            )}
+          </section>
+        )}
+
         <section className="card p-5" aria-labelledby="active-trips-title">
           <div className="flex items-center justify-between">
             <h2 id="active-trips-title" className="section-title text-xl">Your Active Trips ({trips.length})</h2>
@@ -180,6 +246,27 @@ export function LiveUpdatesPage() {
           </div>
         )}
       </Modal>
+    </div>
+  );
+}
+
+/** Staged placeholder for the Trip Risk section (restored from the deleted
+ * RiskIntelligence page). `step` is driven by timers, not backend progress. */
+function LoadingRisk({ step }: { step: number }) {
+  const items = ['Checking connections', 'Checking downstream bookings', 'Calculating exposure', 'Preparing recovery options'];
+  return (
+    <div className="rounded-2xl border border-line bg-white p-6 shadow-card">
+      <h2 className="text-sm font-bold text-ink">Building your risk picture</h2>
+      <div className="mt-5 space-y-4">
+        {items.map((x, i) => (
+          <div key={x} className="flex items-center gap-3">
+            <span className={cn('flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold', step > i ? 'bg-safe/10 text-safe' : step === i ? 'bg-brand/10 text-brand' : 'bg-canvas text-ink-faint')}>
+              {step > i ? '✓' : step === i ? '●' : '○'}
+            </span>
+            <span className={cn('text-sm', step === i ? 'font-semibold text-ink' : 'text-ink-muted')}>{x}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

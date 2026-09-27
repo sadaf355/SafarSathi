@@ -18,7 +18,15 @@ _HOURS_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b", re.I)
 _MINUTES_RE = re.compile(r"(\d{1,4})\s*(?:minutes?|mins?|m)\b", re.I)
 _TIME_RE = re.compile(r"\b([01]?\d|2[0-3])[:.]([0-5]\d)\s*(am|pm)?\b", re.I)
 _GATE_RE = re.compile(r"\bgate\s*(?:changed\s*to|change\s*to|now|:)?\s*([A-Z]?\d{1,3}[A-Z]?)\b", re.I)
-_ROUTE_RE = re.compile(r"\b([A-Z]{3})\s*(?:-|–|→|->|to)\s*([A-Z]{3})\b")
+# Codes are matched case-sensitively in the original text (so "got to the" is
+# never read as a route); only the connector is case-insensitive.
+_ROUTE_RE = re.compile(r"\b([A-Z]{3})\s*(?:-|–|→|->|[Tt][Oo])\s*([A-Z]{3})\b")
+_PLACE_SPLIT_RE = re.compile(r"\s*(?:→|->|–|\s-\s|\bto\b)\s*", re.I)
+# Title words too generic to identify one booking on their own.
+_GENERIC_WORDS = {
+    "flight", "flights", "hotel", "resort", "stay", "tour", "trip", "lake", "valley", "excursion", "airport",
+    "transfer", "connection", "return", "the", "and", "with", "from", "day", "visit", "night", "city", "local",
+}
 
 # Words that look like flight codes but aren't (times, gates, generic tokens).
 _NOT_AIRLINES = {"PM", "AM", "PNR", "UTC", "IST", "GMT", "NO", "ON", "AT"}
@@ -33,6 +41,7 @@ class Extraction:
     route: tuple[str, str] | None = None
     signals: list[str] = field(default_factory=list)
     confidence: float = 0.0
+    text: str = ""  # lower-cased original, for matching bookings by place/title words
 
 
 def _minutes_of_day(hh: str, mm: str, meridiem: str | None) -> int:
@@ -97,8 +106,8 @@ def _classify(lowered: str, has_delay: bool) -> tuple[str | None, str | None]:
 
 
 def extract(text: str) -> Extraction:
-    result = Extraction()
     lowered = text.lower()
+    result = Extraction(text=lowered)
 
     for match in _FLIGHT_RE.finditer(text.upper()):
         code, number = match.group(1), match.group(2)
@@ -108,7 +117,7 @@ def extract(text: str) -> Extraction:
         result.signals.append(f"flight number {result.flight_number}")
         break
 
-    route = _ROUTE_RE.search(text.upper())
+    route = _ROUTE_RE.search(text)
     if route and route.group(1) != route.group(2):
         result.route = (route.group(1), route.group(2))
         result.signals.append(f"route {route.group(1)}→{route.group(2)}")
@@ -150,6 +159,61 @@ def _norm(value: str | None) -> str:
     return re.sub(r"[^A-Z0-9]", "", (value or "").upper())
 
 
+def _wanted_categories(disruption_type: str | None) -> set[str] | None:
+    if disruption_type in (DisruptionType.FLIGHT_DELAY.value, DisruptionType.FLIGHT_CANCELLATION.value,
+                           DisruptionType.AIRPORT_CLOSURE.value, DisruptionType.MISSED_CONNECTION.value):
+        return {"flight", "return"}
+    if disruption_type in (DisruptionType.HOTEL_CANCELLATION.value, DisruptionType.HOTEL_CHECKIN_CONFLICT.value):
+        return {"hotel"}
+    if disruption_type == DisruptionType.TRANSFER_FAILURE.value:
+        return {"transfer"}
+    if disruption_type in (DisruptionType.ACTIVITY_CANCELLATION.value, DisruptionType.ACTIVITY_DELAY.value):
+        return {"activity"}
+    return None
+
+
+def _word_at(text: str, word: str) -> int:
+    """Index of `word` as a whole word in `text`, or -1."""
+    m = re.search(rf"\b{re.escape(word)}\b", text)
+    return m.start() if m else -1
+
+
+def _match_by_words(text: str, nodes: list, wanted: set[str] | None) -> tuple[str, str, str] | None:
+    """Match plain-language notices ("my Delhi to Leh flight", "flight to Leh",
+    "Pangong tour") against booking titles such as "Delhi → Leh" or "Pangong
+    Lake Tour". Needs one best match - a tie is ambiguous and returns None."""
+    if not text:
+        return None
+    scored: list[tuple[int, object, str]] = []
+    for n in nodes:
+        category = getattr(n.category, "value", n.category)
+        if category == "connection" or (wanted and category not in wanted):
+            continue
+        title = (n.title or "").lower()
+        places = [p.strip() for p in _PLACE_SPLIT_RE.split(title) if p.strip()]
+        score, how = 0, ""
+        if len(places) >= 2:
+            origin_at, dest_at = _word_at(text, places[0]), _word_at(text, places[1])
+            if origin_at >= 0 and dest_at > origin_at:
+                score, how = 3, "route"
+            elif dest_at >= 0 and re.search(rf"\bto\s+{re.escape(places[1])}\b", text):
+                score, how = 2, "destination"
+        if not score:
+            words = [w for w in re.findall(r"[a-z]{4,}", title) if w not in _GENERIC_WORDS]
+            hits = sum(1 for w in words if _word_at(text, w) >= 0)
+            if hits:
+                score, how = hits, "booking name"
+        if score:
+            scored.append((score, n, how))
+    if not scored:
+        return None
+    scored.sort(key=lambda t: -t[0])
+    if len(scored) > 1 and scored[0][0] == scored[1][0]:
+        return None
+    _, node, how = scored[0]
+    return node.id, node.title, how
+
+
 def match_node(extraction: Extraction, nodes: list) -> tuple[str | None, str | None, str | None]:
     """Find the itinerary node the notice refers to: by flight number in the
     booking reference/subtitle, then by route codes, then by booking type.
@@ -166,6 +230,9 @@ def match_node(extraction: Extraction, nodes: list) -> tuple[str | None, str | N
             label = (n.label or "").upper()
             if origin in label and dest in label:
                 return n.id, n.title, "route"
+    by_words = _match_by_words(extraction.text, nodes, _wanted_categories(extraction.type))
+    if by_words:
+        return by_words
     wanted_category = None
     if extraction.type in (DisruptionType.FLIGHT_DELAY.value, DisruptionType.FLIGHT_CANCELLATION.value, DisruptionType.MISSED_CONNECTION.value):
         wanted_category = "flight"

@@ -119,9 +119,16 @@ class MockFlightProvider(FlightProvider):
         self, origin: str, destination: str, after: datetime, exclude_confirmation: str | None = None
     ) -> list[ProviderAlternative]:
         self._maybe_fail()
-        if self.failure_mode == "empty":
+        if self.failure_mode == "empty" or after == datetime.max:
+            # datetime.max means "no known earliest time"; any offset from it overflows.
             return []
-        options = _CATALOGUE.get((origin, destination), [])
+        options = [
+            o for o in _CATALOGUE.get((origin, destination), [])
+            if o.departure >= after and o.confirmation_hint != exclude_confirmation
+        ]
+        # The catalogue is pinned to the seeded trips' dates; for any other date
+        # (e.g. a traveler's own trip on the same route) simulate the next few
+        # departures instead of reporting that nothing flies.
         if not options and self.failure_mode is None and origin and destination:
             from datetime import timedelta
             dep1 = after + timedelta(hours=2)

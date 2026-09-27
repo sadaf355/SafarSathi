@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.engines.itinerary_engine import ItineraryEngine
 from app.engines.propagation_engine import PropagationEngine
-from app.engines.recovery_engine import RecoveryEngine, RecoveryPlanResult
+from app.engines.recovery_engine import RecoveryEngine, RecoveryPlanResult, blocks_plan
 from app.models.activity import ActivityEvent
 from app.models.booking import Booking
 from app.models.dependency_edge import DependencyEdge
@@ -46,6 +46,11 @@ class RecoveryPlanNotFoundError(Exception):
 
 class RecoveryPlanUnavailableError(Exception):
     pass
+
+
+class RecoveryPlanConflictError(Exception):
+    """The plan can't be applied in the trip's current state (already applied,
+    or it was generated for a disruption that is no longer the active one)."""
 
 
 def _current_impacts(db: Session, trip_id: str):
@@ -213,6 +218,20 @@ def generate_recovery_options(db: Session, trip_id: str, traveler_id: str | None
     return [_plan_to_out(p, notes.get(p.id)) for p in db_plans]
 
 
+def list_recovery_options(db: Session, trip_id: str, traveler_id: str | None = None) -> list[RecoveryOptionOut]:
+    """Read-only: the not-yet-applied plans already generated for the active
+    disruption, best first. Unlike generate, this never deletes or recreates
+    plans or writes activity/notifications - safe to call on every page load."""
+    trip = get_trip(db, trip_id, traveler_id)
+    disruption = DisruptionRepository(db).latest_unresolved(trip_id)
+    if disruption is None:
+        return []
+    plans = [p for p in RecoveryRepository(db).list_for_disruption(disruption.id) if not p.applied]
+    plans.sort(key=lambda p: (not p.feasible, -p.score))
+    notes = recovery_narrative.option_notes(plans, trip.traveler.preferences) if plans else {}
+    return [_plan_to_out(p, notes.get(p.id)) for p in plans]
+
+
 def apply_recovery(
     db: Session, trip_id: str, recovery_id: str, traveler_id: str | None = None
 ) -> tuple[TripOut, RecoveryOptionOut, ActivityEvent, Notification]:
@@ -222,8 +241,17 @@ def apply_recovery(
         raise RecoveryPlanNotFoundError(recovery_id)
     if not plan.feasible:
         raise RecoveryPlanUnavailableError(plan.explanation or plan.description)
+    if plan.applied:
+        raise RecoveryPlanConflictError("This recovery plan has already been applied.")
 
     disruption = DisruptionRepository(db).get(plan.disruption_id)
+    active = DisruptionRepository(db).latest_unresolved(trip_id)
+    if disruption is None or active is None or active.id != disruption.id:
+        # Applying a plan built for an earlier disruption would recompute every
+        # node from that old event and silently discard the current one.
+        raise RecoveryPlanConflictError(
+            "This plan was generated for an earlier disruption. Generate new recovery options for the current one."
+        )
     node_repo = NodeRepository(db)
     nodes = node_repo.list_for_trip(trip_id)
     edges = node_repo.list_edges_for_trip(trip_id)
@@ -273,29 +301,35 @@ def apply_recovery(
                 if action.new_confirmation:
                     booking.confirmation = action.new_confirmation
 
-    # Rebooked/rescheduled nodes are now independent bookings - they're no longer
-    # bound to whatever dependency originally broke them.
-    for edge in list(edges):
-        if edge.target_id in changed_node_ids:
-            db.delete(edge)
-    db.flush()
-    edges = node_repo.list_edges_for_trip(trip_id)
-
+    # Validate the recovered itinerary the way the recovery engine simulated it:
+    # rebooked/rescheduled nodes are checked without the dependency that broke
+    # them. That detachment is for this check only - the edges stay in the
+    # database, so a later disruption still cascades through the whole trip.
     engine_nodes = [to_engine_node(n) for n in nodes]
-    engine_edges = [to_engine_edge(e) for e in edges]
+    all_engine_edges = [to_engine_edge(e) for e in edges]
+    engine_edges = [e for e in all_engine_edges if e.target not in changed_node_ids]
+    # If the plan replaced the disrupted booking itself (a cancelled flight or
+    # hotel rebooked), the disruption no longer applies to the new booking.
+    primary_rebooked = disruption.primary_node_id in changed_node_ids
     result = _propagation_engine.propagate(
         nodes=engine_nodes,
         edges=engine_edges,
         disrupted_node_id=disruption.primary_node_id,
-        disruption_type=disruption.type.value,
-        delay_minutes=disruption.delay_minutes,
+        disruption_type="healthy" if primary_rebooked else disruption.type.value,
+        delay_minutes=0 if primary_rebooked else disruption.delay_minutes,
         detected_at=disruption.detected_at,
     )
     impacts = result.impacts
 
+    engine_by_id = {n.id: n for n in engine_nodes}
+    remaining_broken = any(blocks_plan(engine_by_id[n.id], impacts, disruption.primary_node_id) for n in nodes)
+
     for node in nodes:
         impact = impacts[node.id]
-        if impact.status in ("healthy", "delayed") and node.id in was_affected:
+        if impact.status in ("healthy", "delayed") and (node.id in was_affected or node.id in changed_node_ids):
+            node.status = NodeStatus.RECOVERED
+        elif node.id == disruption.primary_node_id and impact.status == "broken" and not remaining_broken:
+            # The missed connection marker is replaced by the rebooked leg.
             node.status = NodeStatus.RECOVERED
         else:
             node.status = NodeStatus(impact.status)
@@ -309,14 +343,13 @@ def apply_recovery(
 
     for edge in edges:
         target_status = impacts[edge.target_id].status
-        if target_status in ("healthy", "delayed") and edge.target_id in was_affected:
+        if target_status in ("healthy", "delayed") and (edge.target_id in was_affected or edge.target_id in changed_node_ids):
             target_status = "recovered"
         edge.status = (
             EdgeStatus(target_status) if target_status in EdgeStatus._value2member_map_ else EdgeStatus.AT_RISK
         )
         edge.animated = target_status == "broken"
 
-    remaining_broken = any(impacts[n.id].status == "broken" for n in nodes)
     disruption.resolved = not remaining_broken
     plan.applied = True
     plan.applied_at = datetime.now(timezone.utc)

@@ -14,6 +14,8 @@ vi.mock('@/services/api', async () => {
     getPreferences: vi.fn(),
     triggerDisruption: vi.fn(),
     generateRecoveryOptions: vi.fn(),
+    listRecoveryOptions: vi.fn(),
+    repropagate: vi.fn(),
     applyRecovery: vi.fn(),
     resetTrip: vi.fn(),
     setPreferences: vi.fn(),
@@ -385,6 +387,9 @@ describe('AppContext', () => {
     expect(result.current.phase).toBe('recovering');
     expect(result.current.recoveryOptions).toEqual([option]);
     expect(result.current.trip.nodes.find((n) => n.id === 'n2')?.status).toBe('broken');
+    // The dependency line into the broken booking turns broken too (the cascade
+    // used to read the empty initial trip and never updated any edge).
+    expect(result.current.trip.edges.find((e) => e.id === 'e1')).toMatchObject({ status: 'broken', animated: true });
     expect(result.current.preDisruptionTrip?.nodes.every((n) => n.status === 'healthy')).toBe(true);
 
     const recoveredTrip = baseTrip({ status: 'recovered' });
@@ -402,6 +407,27 @@ describe('AppContext', () => {
     expect(result.current.phase).toBe('recovered');
     expect(result.current.appliedRecovery?.id).toBe(option.id);
     expect(result.current.trip.status).toBe('recovered');
+  });
+
+  it('restores an active disruption on reload without regenerating its plans', async () => {
+    vi.mocked(api.getItinerary).mockResolvedValue(baseTrip({ status: 'disrupted' }));
+    vi.mocked(api.repropagate).mockResolvedValue({
+      disruption: {
+        id: 'd1', type: 'flight-delay', label: 'Flight delayed', primaryNodeId: 'n1', delayMinutes: 180,
+        impactLevel: 'high', directImpact: 1, downstreamImpact: 1, financialExposure: 0, refundExposure: 0,
+        cascadeSteps: [], detectedAt: '2025-09-01T06:00:00',
+      },
+      impacts: [],
+      sequence: [],
+      tripHealthScore: 40,
+    });
+    const existing = recoveryOption({ id: 'recovery-existing' });
+    vi.mocked(api.listRecoveryOptions).mockResolvedValue([existing]);
+
+    const { result } = renderHook(() => useApp(), { wrapper });
+
+    await waitFor(() => expect(result.current.recoveryOptions).toEqual([existing]));
+    expect(api.generateRecoveryOptions).not.toHaveBeenCalled();
   });
 
   it('leaves state untouched and rethrows when applying a recovery plan fails', async () => {

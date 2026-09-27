@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
         # a fresh deploy doesn't silently create an out-of-band schema that
         # alembic then thinks is already at some unknown revision.
         Base.metadata.create_all(bind=engine)
-    if settings.seed_demo_data:
+    if settings.should_seed_demo_data:
         db = SessionLocal()
         try:
             seed_if_empty(db)
@@ -103,6 +103,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 app.include_router(health.router)
 app.include_router(trips.router)
+app.include_router(trips.geocode_router)
 app.include_router(disruptions.router)
 app.include_router(recovery.router)
 app.include_router(assistant.router)

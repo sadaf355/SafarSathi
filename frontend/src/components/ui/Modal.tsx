@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -10,14 +10,35 @@ interface ModalProps {
   className?: string;
   title?: string;
   subtitle?: string;
+  /** Element to focus when the dialog opens (e.g. a Cancel button). Defaults
+   * to the first focusable element, which is the header close button. */
+  initialFocusRef?: React.RefObject<HTMLElement>;
+  /** Omit the header close button, for dialogs whose own Cancel button is the
+   * way out (Escape and the backdrop still close). Keeps the Tab cycle to the
+   * dialog's own actions. */
+  hideCloseButton?: boolean;
 }
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ open, onClose, children, className, title, subtitle }: ModalProps) {
+// Open Modal instances, oldest first. Only the last (topmost) one reacts to
+// Escape, so a dialog stacked over another closes on its own.
+const openStack: string[] = [];
+
+export function Modal({ open, onClose, children, className, title, subtitle, initialFocusRef, hideCloseButton = false }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  const instanceId = useId();
+  const titleId = `${instanceId}-title`;
+  const subtitleId = `${instanceId}-subtitle`;
+
+  // Callers pass inline arrows, so read the latest onClose through a ref: the
+  // focus-trap effect must not re-run (and re-focus) on every parent render.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (open) {
@@ -33,14 +54,15 @@ export function Modal({ open, onClose, children, className, title, subtitle }: M
   // page behind it.
   useEffect(() => {
     if (!open) return;
+    openStack.push(instanceId);
     previouslyFocused.current = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
     const firstFocusable = dialog?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-    (firstFocusable ?? dialog)?.focus();
+    (initialFocusRef?.current ?? firstFocusable ?? dialog)?.focus();
 
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (openStack[openStack.length - 1] === instanceId) onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab' || !dialog) return;
@@ -59,9 +81,11 @@ export function Modal({ open, onClose, children, className, title, subtitle }: M
     window.addEventListener('keydown', handler);
     return () => {
       window.removeEventListener('keydown', handler);
+      const index = openStack.lastIndexOf(instanceId);
+      if (index !== -1) openStack.splice(index, 1);
       previouslyFocused.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open, instanceId, initialFocusRef]);
 
   if (!open) return null;
 
@@ -72,7 +96,8 @@ export function Modal({ open, onClose, children, className, title, subtitle }: M
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={title ? titleId : undefined}
+        aria-describedby={subtitle ? subtitleId : undefined}
         tabIndex={-1}
         className={cn(
           'relative z-10 flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-card border border-line bg-white shadow-lift animate-scale-in outline-none',
@@ -82,12 +107,14 @@ export function Modal({ open, onClose, children, className, title, subtitle }: M
         {(title || subtitle) && (
           <div className="flex shrink-0 items-start justify-between gap-4 border-b border-line p-5">
             <div>
-              {title && <h2 className="font-display text-lg font-bold text-ink">{title}</h2>}
-              {subtitle && <p className="mt-1 text-sm text-ink-muted">{subtitle}</p>}
+              {title && <h2 id={titleId} className="font-display text-lg font-bold text-ink">{title}</h2>}
+              {subtitle && <p id={subtitleId} className="mt-1 text-sm text-ink-muted">{subtitle}</p>}
             </div>
-            <button onClick={onClose} className="shrink-0 rounded-lg p-1.5 text-ink-muted transition hover:bg-canvas hover:text-ink" aria-label="Close">
-              <X className="h-5 w-5" />
-            </button>
+            {!hideCloseButton && (
+              <button onClick={onClose} className="shrink-0 rounded-lg p-1.5 text-ink-muted transition hover:bg-canvas hover:text-ink" aria-label="Close">
+                <X className="h-5 w-5" />
+              </button>
+            )}
           </div>
         )}
         <div className="min-h-0 overflow-y-auto p-5 scrollbar-thin">{children}</div>

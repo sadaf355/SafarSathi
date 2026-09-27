@@ -27,8 +27,9 @@ interface SocialSignalsTickerProps {
   intervalMs?: number;
 }
 
-/** Traveler-report feed along the route. Signals are synthesized from weather
- * at each hub (no crowd data feed is connected) and labelled "Simulated". */
+/** Traveler-report feed along the route. Real public posts (Mastodon hashtag
+ * timelines) where available, otherwise signals synthesized from each hub's
+ * weather - the header and every row say which. */
 export function SocialSignalsTicker({ tripId, scenario, intervalMs = 20_000 }: SocialSignalsTickerProps) {
   const [live, setLive] = useState<api.SocialSignals | null>(null);
   const [active, setActive] = useState(0);
@@ -53,11 +54,14 @@ export function SocialSignalsTicker({ tripId, scenario, intervalMs = 20_000 }: S
   }, [signals.length, reduced]);
 
   const current = signals[active] ?? signals[0];
+  const hasReal = signals.some((s) => s.source === 'mastodon');
+  const hasSimulated = signals.some((s) => s.source !== 'mastodon');
   return (
     <section className="card overflow-hidden" aria-labelledby="signals-title">
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
         <h2 id="signals-title" className="section-title">Traveler signals</h2>
-        <span className="pill bg-canvas text-ink-muted" title="Synthesized from weather at each hub; no crowd-report feed is connected.">Simulated</span>
+        {hasReal && <span className="pill bg-safe-light text-safe" title="Real public posts from Mastodon hashtag timelines for the places on this trip.">Live · Mastodon</span>}
+        {hasSimulated && <span className="pill bg-canvas text-ink-muted" title="Synthesized from the weather at each place where no real post was available.">Simulated</span>}
         {scenario && <span className="pill bg-ai-light text-ai">Scenario feed</span>}
         {feed && <span className="ml-auto text-xs text-ink-muted">{feed.summary}</span>}
       </div>
@@ -86,7 +90,12 @@ function SignalRow({ signal, highlight }: { signal: api.SocialSignal; highlight?
       </span>
       <div className="min-w-0 flex-1">
         <p className={cn('leading-snug text-ink', highlight ? 'text-sm font-medium' : 'text-[13px] text-ink-soft')}>{signal.text}</p>
-        <p className="mt-0.5 text-[11px] text-ink-muted">{signal.location} · {signal.minutesAgo} min ago · {signal.urgency}</p>
+        <p className="mt-0.5 text-[11px] text-ink-muted">
+          {signal.location} · {signal.minutesAgo} min ago · {signal.urgency} ·{' '}
+          {signal.source === 'mastodon' && signal.url
+            ? <a href={signal.url} target="_blank" rel="noopener noreferrer" className="font-medium text-brand hover:underline">Mastodon post ↗</a>
+            : signal.source === 'mastodon' ? 'Mastodon' : 'simulated'}
+        </p>
       </div>
     </div>
   );

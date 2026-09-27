@@ -5,7 +5,7 @@ import { formatINR, formatMinutes, formatTime } from '@/lib/journey';
 import { optionBadge, type OptionRoute } from '@/lib/recovery';
 import { riskTone, toneClasses } from '@/lib/status';
 import type { ChatMessage, RecoveryOption } from '@/types';
-import { ArrowRight, BadgePercent, CheckCircle2, Clock3, Crown, IndianRupee, SendHorizontal, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, BadgePercent, CheckCircle2, Clock3, Crown, IndianRupee, SendHorizontal, ShieldCheck, Sparkles, Wallet } from 'lucide-react';
 
 export function BotAvatar({ className }: { className?: string }) {
   return (
@@ -43,7 +43,8 @@ export function MessageBubble({ message, initials }: { message: ChatMessage; ini
   return (
     <div className="flex items-start gap-3 animate-fade-in">
       <BotAvatar />
-      <div className="max-w-[88%] rounded-2xl rounded-tl-md border border-line bg-white px-5 py-3.5 text-[15px] leading-relaxed text-ink-soft shadow-sm">
+      <div className="ai-surface max-w-[88%] rounded-2xl rounded-tl-md px-5 py-3.5 text-[15px] leading-relaxed text-ink-soft shadow-sm">
+        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-safar-ai">✦ SAFARSATHI INSIGHT</div>
         <div className="whitespace-pre-line">{message.content}</div>
         <div className="mt-2 text-[11px] text-ink-faint">{message.timestamp}</div>
       </div>
@@ -95,6 +96,26 @@ export function AIRecoveryCard({ option, route, rank, selected, onOpen }: { opti
         <div className="flex items-start gap-1.5"><CheckCircle2 className={cn('mt-0.5 h-3.5 w-3.5', risk.text)} /><span><b className="block capitalize text-ink">{option.residualRisk}</b><span className="text-ink-muted">Risk</span></span></div>
       </div>
     </button>
+  );
+}
+
+/** The assistant proposing one specific plan. Reviewing opens a confirm dialog;
+ * nothing is applied from this card itself. */
+export function ActionCard({ option, onReview }: { option: RecoveryOption; onReview: () => void }) {
+  return (
+    <div className="ai-surface p-4">
+      <div className="flex items-center gap-2 text-ai"><Sparkles className="h-4 w-4" /><span className="text-[10px] font-bold uppercase tracking-wider">Sathi can act</span></div>
+      <div className="mt-2 text-sm font-bold text-ink">Apply: {option.name}</div>
+      <p className="mt-1 text-xs text-ink-soft">{option.description}</p>
+      <div className="mt-3 flex flex-wrap gap-3 text-xs text-ink-soft">
+        <span className="flex items-center gap-1"><Wallet className="h-3.5 w-3.5" />{formatINR(Math.max(0, option.costDelta))}</span>
+        <span className="flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" />{option.timeImpactMinutes ? `+${formatMinutes(option.timeImpactMinutes)}` : 'On time'}</span>
+        <span className="flex items-center gap-1 text-safe"><CheckCircle2 className="h-3.5 w-3.5" />{option.bookingsPreserved}/{option.totalBookings} preserved</span>
+      </div>
+      <button onClick={onReview} className="mt-4 flex items-center gap-2 rounded-xl bg-brand px-3 py-2 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2">
+        Review &amp; confirm <ArrowRight className="h-3.5 w-3.5" />
+      </button>
+    </div>
   );
 }
 

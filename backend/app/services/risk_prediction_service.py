@@ -19,7 +19,8 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.models.enums import NotificationCategory, NotificationSeverity, RiskLevel, SnapshotType, TripStatus
+from app.models.activity import ActivityEvent
+from app.models.enums import ActivityType, NotificationCategory, NotificationSeverity, RiskLevel, SnapshotType, TripStatus
 from app.models.notification import Notification
 from app.models.risk import RiskSnapshot
 from app.models.trip import Trip
@@ -53,15 +54,42 @@ def _level(value: str) -> RiskLevel:
     return RiskLevel(value) if value in RiskLevel._value2member_map_ else RiskLevel.MEDIUM
 
 
-def predict_trip(db: Session, trip: Trip) -> int:
-    """Re-score one trip and persist its snapshots. Returns new high-risk alerts raised."""
-    previous_high = set(
-        db.scalars(
-            select(RiskSnapshot.node_id).where(
-                RiskSnapshot.trip_id == trip.id, RiskSnapshot.risk_level == RiskLevel.HIGH, RiskSnapshot.node_id.is_not(None)
-            )
-        )
+RISK_RISE_ALERT_POINTS = 15  # a booking's risk jumping this much since the last cycle is worth telling the traveler
+WEATHER_RISE_ALERT_POINTS = 15
+
+
+def _alert(db: Session, trip: Trip, title: str, message: str) -> Notification:
+    notification = Notification(
+        trip_id=trip.id,
+        severity=NotificationSeverity.MEDIUM,
+        category=NotificationCategory.RISK,
+        title=title,
+        message=message,
     )
+    db.add(notification)
+    db.add(ActivityEvent(trip_id=trip.id, type=ActivityType.MONITORING, message=f"Elevated risk detected: {title}", detail=message))
+    return notification
+
+
+def predict_trip(db: Session, trip: Trip) -> list[Notification]:
+    """Re-score one trip, replace its snapshots, and raise an alert for anything
+    that got meaningfully worse since the previous cycle: a booking newly at high
+    risk, a booking whose risk rose sharply, or a jump in weather risk. Returns
+    the notifications raised (empty when nothing worsened)."""
+    previous = list(db.scalars(select(RiskSnapshot).where(RiskSnapshot.trip_id == trip.id)))
+    previous_high = {s.node_id for s in previous if s.node_id is not None and s.risk_level == RiskLevel.HIGH}
+    previous_node = {(s.node_id, s.risk_type): s.risk_percent for s in previous if s.node_id is not None}
+    previous_weather = next(
+        (
+            f.get("score")
+            for s in previous
+            if s.snapshot_type == SnapshotType.TRIP
+            for f in (s.contributing_factors or [])
+            if isinstance(f, dict) and f.get("factor") == "weather"
+        ),
+        None,
+    )
+
     analysis = get_risk_analysis(db, trip.id)
     db.execute(delete(RiskSnapshot).where(RiskSnapshot.trip_id == trip.id))
 
@@ -85,7 +113,10 @@ def predict_trip(db: Session, trip: Trip) -> int:
         )
     )
 
-    raised = 0
+    # Alerts are for trips running normally; during a disruption the traveler is
+    # already looking at the impact and recovery screens.
+    alerting = trip.status == TripStatus.OPERATIONAL
+    raised: list[Notification] = []
     for card in analysis.cards:
         level = _level(card.risk_level)
         db.add(
@@ -101,17 +132,20 @@ def predict_trip(db: Session, trip: Trip) -> int:
                 recommendation=card.recommendation,
             )
         )
-        if level == RiskLevel.HIGH and card.node_id not in previous_high and trip.status == TripStatus.OPERATIONAL:
-            db.add(
-                Notification(
-                    trip_id=trip.id,
-                    severity=NotificationSeverity.MEDIUM,
-                    category=NotificationCategory.RISK,
-                    title=f"Rising risk: {card.node_label}",
-                    message=f"{card.risk_type} risk is now {card.risk_percent}%. {card.recommendation}",
-                )
-            )
-            raised += 1
+        if not alerting:
+            continue
+        before = previous_node.get((card.node_id, card.risk_type))
+        if level == RiskLevel.HIGH and card.node_id not in previous_high:
+            raised.append(_alert(db, trip, f"Rising risk: {card.node_label}",
+                                 f"{card.risk_type} risk is now {card.risk_percent}%. {card.recommendation}"))
+        elif before is not None and card.risk_percent - before >= RISK_RISE_ALERT_POINTS:
+            raised.append(_alert(db, trip, f"Rising risk: {card.node_label}",
+                                 f"{card.risk_type} risk increased from {before}% to {card.risk_percent}%. {card.recommendation}"))
+
+    if alerting and previous_weather is not None and score.weather_risk - previous_weather >= WEATHER_RISE_ALERT_POINTS:
+        raised.append(_alert(db, trip, "Weather outlook worsened",
+                             f"Weather risk increased from {previous_weather} to {score.weather_risk} for this trip. "
+                             "Consider widening buffers on outdoor and early/late legs."))
     db.commit()
     return raised
 
@@ -122,7 +156,7 @@ def run_risk_prediction_cycle(db: Session, today: date | None = None) -> dict:
     summary = {"scanned": len(trips), "updated": 0, "alerts": 0, "failed": 0}
     for trip in trips:
         try:
-            summary["alerts"] += predict_trip(db, trip)
+            summary["alerts"] += len(predict_trip(db, trip))
             summary["updated"] += 1
         except Exception:
             db.rollback()

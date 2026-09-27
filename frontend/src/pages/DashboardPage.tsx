@@ -11,7 +11,7 @@ import { TripStatusCard } from '@/components/dashboard/TripStatusCard';
 import { HelpCard } from '@/components/dashboard/HelpCard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { formatDateRange, tripType } from '@/lib/journey';
+import { formatDateRange, formatINR, tripType } from '@/lib/journey';
 import { AlertCircle, ArrowRight, ArrowUp, Plane, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
 
 function greeting(now = new Date()) {
@@ -35,6 +35,7 @@ export function DashboardPage() {
     ? activeDisruption.financialExposure + activeDisruption.refundExposure
     : trip.nodes.reduce((sum, n) => sum + (n.refundAmount ?? 0), 0);
   const isDisrupted = phase === 'disrupted' || phase === 'analyzing' || phase === 'recovering';
+  const readyOptions = recoveryOptions.filter((o) => o.feasible !== false).length;
 
   return (
     <div className="animate-fade-in">
@@ -100,6 +101,17 @@ export function DashboardPage() {
               <div className="mt-5">
                 <JourneyRoute journey={journey} onSelectStop={() => navigate('trip')} />
               </div>
+              {isDisrupted && activeDisruption && (
+                <div className="ai-surface mt-5 p-4" aria-live="polite">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-safar-ai">✦ SAFARSATHI INSIGHT</div>
+                  <p className="mt-1.5 text-sm leading-6 text-ink-soft">
+                    {activeDisruption.label} affects {activeDisruption.downstreamImpact} downstream booking{activeDisruption.downstreamImpact === 1 ? '' : 's'}, with {formatINR(activeDisruption.financialExposure)} at risk.{' '}
+                    {readyOptions > 0
+                      ? `${readyOptions} recovery option${readyOptions === 1 ? ' is' : 's are'} ranked and ready to review.`
+                      : 'Safar Sathi is preparing recovery options.'}
+                  </p>
+                </div>
+              )}
             </section>
 
             <RouteMap stops={journey.stops} legs={journey.legs} maxZoom={5} padding={36} className="h-[240px] rounded-card border border-line shadow-card sm:h-[260px]">

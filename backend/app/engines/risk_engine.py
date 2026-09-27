@@ -42,6 +42,16 @@ def _time_of_day_factor(moment: datetime) -> float:
     return 1.0
 
 
+PEAK_TRAFFIC_WINDOWS = ((8, 11), (17, 21))  # [start, end) local hours
+
+
+def _road_traffic_factor(moment: datetime) -> float:
+    """Modelled road congestion for ground transfers: peak commute hours make
+    an on-time road leg less certain. There is no live traffic feed; this is a
+    deterministic time-of-day model and is labelled as such."""
+    return 1.2 if any(start <= moment.hour < end for start, end in PEAK_TRAFFIC_WINDOWS) else 1.0
+
+
 @dataclass
 class RiskResult:
     risk_percent: int
@@ -74,6 +84,7 @@ class RiskEngine:
         location: str,
         moment: datetime,
         dependency_count: int,
+        road: bool = False,
     ) -> RiskResult:
         required_minutes = max(required_minutes, 1)
         recommended_minutes = max(recommended_minutes, required_minutes)
@@ -97,6 +108,8 @@ class RiskEngine:
         complexity = AIRPORT_COMPLEXITY.get(location, 0.55)
         base *= 0.75 + complexity * 0.35
         base *= _time_of_day_factor(moment)
+        traffic = _road_traffic_factor(moment) if road else 1.0
+        base *= traffic
         base += min(dependency_count, 6) * 1.5
 
         # Location/timing/dependency factors may move the score within a band,
@@ -113,6 +126,8 @@ class RiskEngine:
         ]
         if _time_of_day_factor(moment) > 1.0:
             factors.append("early-morning/late-night timing increases weather/ops variability")
+        if traffic > 1.0:
+            factors.append("road leg in peak traffic hours (08:00-11:00 / 17:00-21:00, modelled - no live traffic feed)")
 
         if band == "insufficient":
             reason = (

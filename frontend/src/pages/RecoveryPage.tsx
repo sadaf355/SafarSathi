@@ -146,7 +146,9 @@ export function RecoveryPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <button onClick={() => navigate('trip')} className="btn-outline">View updated itinerary <ArrowRight className="h-4 w-4" /></button>
-                <button onClick={async () => { await resetTrip(); addToast('info', 'Journey reset', 'All bookings restored to their original schedule.'); }} className="btn-ghost" disabled={isBusy}><RotateCcw className="h-4 w-4" /> Reset journey</button>
+                {trip.resettable !== false && (
+                  <button onClick={async () => { await resetTrip(); addToast('info', 'Journey reset', 'All bookings restored to their original schedule.'); }} className="btn-ghost" disabled={isBusy}><RotateCcw className="h-4 w-4" /> Reset journey</button>
+                )}
               </div>
             </div>
             <div className="mt-6"><BeforeAfterView /></div>

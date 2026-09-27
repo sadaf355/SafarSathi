@@ -24,6 +24,15 @@ def generate_recovery_options(
         raise HTTPException(status_code=400, detail="No active disruption for this trip.")
 
 
+@router.get("/recovery-options", response_model=list[RecoveryOptionOut])
+def list_recovery_options(trip_id: str, db: Session = Depends(get_db), traveler_id: str = Depends(get_current_traveler_id)):
+    """Plans already generated for the active disruption (read-only)."""
+    try:
+        return recovery_service.list_recovery_options(db, trip_id, traveler_id)
+    except trip_service.TripNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Trip '{trip_id}' not found")
+
+
 @router.post("/recovery/apply", response_model=ApplyRecoveryResult)
 @limiter.limit(lambda: get_settings().recovery_rate_limit)
 def apply_recovery(
@@ -39,7 +48,7 @@ def apply_recovery(
         raise HTTPException(status_code=404, detail=f"Trip '{trip_id}' not found")
     except recovery_service.RecoveryPlanNotFoundError:
         raise HTTPException(status_code=404, detail=f"Recovery plan '{payload.recovery_id}' not found")
-    except recovery_service.RecoveryPlanUnavailableError as exc:
+    except (recovery_service.RecoveryPlanUnavailableError, recovery_service.RecoveryPlanConflictError) as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
     from app.schemas.activity import ActivityEventOut

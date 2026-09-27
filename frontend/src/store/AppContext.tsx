@@ -10,7 +10,15 @@ import type {
 } from '@/types';
 import { defaultPreferences } from '@/data/mockData';
 import * as api from '@/services/api';
-import { ApiError } from '@/services/api';
+import { ApiError, type CascadeLink, type ImpactEntry } from '@/services/api';
+
+/** Node-to-node cascade links for a real disruption, from the propagation
+ * response: each affected node points back at the node that caused it. */
+function linksFromImpacts(impacts: ImpactEntry[]): CascadeLink[] {
+  return impacts
+    .filter((imp) => imp.causedBy && imp.status !== 'healthy')
+    .map((imp) => ({ fromNodeId: imp.causedBy as string, toNodeId: imp.nodeId, status: imp.status }));
+}
 
 export type AppPhase = 'idle' | 'disrupted' | 'analyzing' | 'recovering' | 'recovered';
 
@@ -72,6 +80,8 @@ export interface AppState {
   preDisruptionTrip: Trip | null;
   phase: AppPhase;
   activeDisruption: Disruption | null;
+  /** Which node caused which for the active disruption; null when unknown. */
+  cascadeLinks: CascadeLink[] | null;
   recoveryOptions: RecoveryOption[];
   selectedRecovery: string | null;
   appliedRecovery: RecoveryOption | null;
@@ -92,8 +102,8 @@ type Action =
   | { type: 'TRIP_NOT_FOUND' }
   | { type: 'SWITCH_TRIP'; tripId: string }
   | { type: 'SET_BUSY'; busy: boolean }
-  | { type: 'DISRUPTION_STARTED'; disruption: Disruption }
-  | { type: 'DISRUPTION_RESTORED'; disruption: Disruption; options: RecoveryOption[] }
+  | { type: 'DISRUPTION_STARTED'; disruption: Disruption; cascadeLinks: CascadeLink[] }
+  | { type: 'DISRUPTION_RESTORED'; disruption: Disruption; options: RecoveryOption[]; cascadeLinks: CascadeLink[] }
   | { type: 'NODE_EDGE_UPDATE'; nodeUpdates: { nodeId: string; status: string; reason?: string | null }[]; edgeUpdates: { edgeId: string; status: string; animated?: boolean }[] }
   | { type: 'SET_PHASE'; phase: AppPhase }
   | { type: 'SET_RECOVERY_OPTIONS'; options: RecoveryOption[] }
@@ -154,6 +164,7 @@ function reducer(state: AppState, action: Action): AppState {
         trip: EMPTY_TRIP,
         phase: 'idle',
         activeDisruption: null,
+        cascadeLinks: null,
         preDisruptionTrip: null,
         recoveryOptions: [],
         selectedRecovery: null,
@@ -171,6 +182,7 @@ function reducer(state: AppState, action: Action): AppState {
         noTripFound: false,
         phase: 'idle',
         activeDisruption: null,
+        cascadeLinks: null,
         preDisruptionTrip: null,
         recoveryOptions: [],
         selectedRecovery: null,
@@ -185,13 +197,14 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         phase: 'disrupted',
         activeDisruption: action.disruption,
+        cascadeLinks: action.cascadeLinks,
         preDisruptionTrip: structuredClone(state.trip),
         selectedRecovery: null,
         appliedRecovery: null,
         recoveryOptions: [],
       };
     case 'DISRUPTION_RESTORED':
-      return { ...state, activeDisruption: action.disruption, recoveryOptions: action.options, phase: action.options.length ? 'recovering' : 'disrupted' };
+      return { ...state, activeDisruption: action.disruption, cascadeLinks: action.cascadeLinks, recoveryOptions: action.options, phase: action.options.length ? 'recovering' : 'disrupted' };
     case 'NODE_EDGE_UPDATE': {
       const { newNodes, newEdges } = applyUpdates(state.trip.nodes, state.trip.edges, action.nodeUpdates, action.edgeUpdates);
       return { ...state, trip: { ...state.trip, nodes: newNodes, edges: newEdges } };
@@ -209,6 +222,7 @@ function reducer(state: AppState, action: Action): AppState {
         appliedRecovery: action.recovery,
         phase: 'recovered',
         selectedRecovery: action.recovery.id,
+        cascadeLinks: null, // the recovered itinerary no longer follows that cascade
       };
     case 'NODE_ADDED':
       // Replaces trip wholesale from the backend's authoritative response -
@@ -224,6 +238,7 @@ function reducer(state: AppState, action: Action): AppState {
         preDisruptionTrip: null,
         phase: 'idle',
         activeDisruption: null,
+        cascadeLinks: null,
         recoveryOptions: [],
         selectedRecovery: null,
         appliedRecovery: null,
@@ -254,6 +269,7 @@ const initialState: AppState = {
   preDisruptionTrip: null,
   phase: 'idle',
   activeDisruption: null,
+  cascadeLinks: null,
   recoveryOptions: [],
   selectedRecovery: null,
   appliedRecovery: null,
@@ -296,6 +312,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // first, so a manual trigger can never race a running demo.
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const sequenceTokenRef = useRef(0);
+  // Cascade timers fire after later renders; they must read the trip as it is
+  // then, not the (empty) trip captured when the callback was first created.
+  const tripRef = useRef(state.trip);
+  tripRef.current = state.trip;
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -348,8 +368,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // A disruption from an earlier session is still active: restore its
         // details and recovery options so every page can act on it right away.
         try {
-          const [propagation, options] = await Promise.all([api.repropagate(state.tripId), api.generateRecoveryOptions(state.tripId)]);
-          dispatch({ type: 'DISRUPTION_RESTORED', disruption: propagation.disruption, options });
+          // Read the plans that already exist; only generate when there are none.
+          // Generating on every reload would replace the plans (new ids) and log
+          // "strategies generated" + a notification on each page refresh.
+          const [propagation, existing] = await Promise.all([api.repropagate(state.tripId), api.listRecoveryOptions(state.tripId)]);
+          const options = existing.length ? existing : await api.generateRecoveryOptions(state.tripId);
+          dispatch({ type: 'DISRUPTION_RESTORED', disruption: propagation.disruption, options, cascadeLinks: linksFromImpacts(propagation.impacts) });
         } catch {
           /* non-fatal: the trip itself loaded; recovery can be regenerated from the Recovery page */
         }
@@ -444,7 +468,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         step += 1;
         addTimer(() => {
           if (sequenceTokenRef.current !== token) return;
-          const edgeUpdates = state.trip.edges
+          const edgeUpdates = tripRef.current.edges
             .filter((e) => e.target === nodeId)
             .map((e) => ({ edgeId: e.id, status: impact.status, animated: impact.status === 'broken' }));
           dispatch({
@@ -456,7 +480,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       return step * CASCADE_STEP_MS + 200;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [addTimer]
   );
 
@@ -472,7 +495,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           primaryNodeId: options?.primaryNodeId,
           delayMinutes: options?.delayMinutes,
         });
-        dispatch({ type: 'DISRUPTION_STARTED', disruption: result.disruption });
+        dispatch({ type: 'DISRUPTION_STARTED', disruption: result.disruption, cascadeLinks: linksFromImpacts(result.impacts) });
         const cascadeDuration = runImpactSequence(result.impacts, result.sequence, token);
 
         await new Promise<void>((resolve) => {

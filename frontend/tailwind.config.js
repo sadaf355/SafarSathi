@@ -43,6 +43,8 @@ export default {
         'pulse-ring': 'pulseRing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite', 'pulse-soft': 'pulseSoft 2.5s ease-in-out infinite',
         shimmer: 'shimmer 1.6s linear infinite', typing: 'typing 1.1s steps(3,end) infinite',
         'dash-flow': 'dashFlow 1.2s linear infinite', 'draw-line': 'drawLine 1.1s ease-out forwards',
+        // Impact panel: each cascade stage pulses as it is revealed.
+        cascade: 'cascadePulse 1.1s ease-out 2',
       },
       keyframes: {
         fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
@@ -55,6 +57,7 @@ export default {
         typing: { '0%, 20%': { opacity: '0.25' }, '50%': { opacity: '1' }, '80%, 100%': { opacity: '0.25' } },
         dashFlow: { to: { strokeDashoffset: '-20' } },
         drawLine: { from: { transform: 'scaleX(0)' }, to: { transform: 'scaleX(1)' } },
+        cascadePulse: { '0%': { boxShadow: '0 0 0 0 currentColor' }, '100%': { boxShadow: '0 0 0 8px transparent' } },
       },
     },
   },

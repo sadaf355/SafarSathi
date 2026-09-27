@@ -55,6 +55,9 @@ export interface DependencyEdgeData {
   label?: string;
   type?: 'dependency' | 'recovery';
   animated?: boolean;
+  /** "hard" = the next leg can't happen without this one; "soft" = it can slip. */
+  dependencyType?: 'hard' | 'soft';
+  minBufferMinutes?: number;
 }
 
 export interface Trip {
@@ -72,6 +75,8 @@ export interface Trip {
   healthScore: number;
   status: 'operational' | 'disrupted' | 'recovering' | 'recovered';
   days: TripDay[];
+  /** Only seeded demo trips have an original state to reset to. */
+  resettable?: boolean;
 }
 
 export interface TripDay {
@@ -105,6 +110,8 @@ export interface Disruption {
   refundExposure: number;
   cascadeSteps: CascadeStep[];
   detectedAt: string;
+  /** Plain-language explanation of the cascade, built by the backend from the engine output. */
+  narrative?: string | null;
 }
 
 export interface CascadeStep {

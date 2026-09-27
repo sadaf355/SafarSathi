@@ -39,7 +39,9 @@ describe('DigitalTwinPage', () => {
     }
     expect(screen.getByTestId('twin-map')).toHaveAttribute('data-hits', '0');
     expect(await screen.findByText(/Forecast exposure/)).toBeInTheDocument();
-    expect(screen.getByText('Simulated')).toBeInTheDocument();
+    // The source pill reflects the loaded feed (the offline demo only has simulated signals).
+    expect(await screen.findByText('Simulated')).toBeInTheDocument();
+    expect(screen.queryByText('Live · Mastodon')).toBeNull();
   });
 
   it('runs a fog scenario and compares the live itinerary with its twin', async () => {

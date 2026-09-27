@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils';
 import { formatTime, type JourneyLeg, type JourneyStop } from '@/lib/journey';
 import { statusLabel, statusTone, toneClasses } from '@/lib/status';
 import type { StopWeather } from '@/hooks/useTravelData';
+import type { CascadeLink } from '@/services/api';
+import type { NodeStatus } from '@/types';
 import { Crosshair, Minus, Plus } from 'lucide-react';
 
 export interface MapLayers {
@@ -26,6 +28,10 @@ interface RouteMapProps {
   /** Overlays rendered above the map (legends, filters, badges). */
   children?: ReactNode;
   onSelectStop?: (stop: JourneyStop) => void;
+  /** Per-booking coordinates, used only to place cascade arcs (legs and stops stay city-based). */
+  nodePositions?: { id: string; lat: number | null; lng: number | null }[];
+  /** Node-to-node links of the active disruption, drawn as animated arcs. */
+  cascade?: CascadeLink[];
 }
 
 const ALL_LAYERS: MapLayers = { flights: true, trains: true, weather: true, airports: true };
@@ -48,6 +54,19 @@ function arc(a: [number, number], b: [number, number], bend = 0.22, steps = 40):
     return [lat, lng];
   });
 }
+
+/** Cascade arcs use the Digital Twin overlay's curve (same function and defaults),
+ * so real and hypothetical cascades look alike. */
+function cascadeArc(a: [number, number], b: [number, number], bend = 0.18, steps = 32): [number, number][] {
+  const ctrl: [number, number] = [(a[0] + b[0]) / 2 + (b[1] - a[1]) * bend, (a[1] + b[1]) / 2 - (b[0] - a[0]) * bend];
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const t = i / steps;
+    return [(1 - t) ** 2 * a[0] + 2 * (1 - t) * t * ctrl[0] + t ** 2 * b[0], (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * ctrl[1] + t ** 2 * b[1]];
+  });
+}
+
+// Same "same place" rule as the Digital Twin overlay's sites.
+const positionKey = ([lat, lng]: [number, number]) => `${lat.toFixed(2)},${lng.toFixed(2)}`;
 
 const legColor = (leg: JourneyLeg) => {
   if (leg.status === 'delayed' || leg.status === 'broken' || leg.status === 'cancelled') return '#FF5A5A';
@@ -157,7 +176,7 @@ function FitToJourney({ bounds, maxZoom, padding }: { bounds: L.LatLngBounds | n
   return null;
 }
 
-export function RouteMap({ stops, legs, layers = ALL_LAYERS, weather = [], maxZoom = 5, padding = 70, className, children, onSelectStop }: RouteMapProps) {
+export function RouteMap({ stops, legs, layers = ALL_LAYERS, weather = [], maxZoom = 5, padding = 70, className, children, onSelectStop, nodePositions, cascade }: RouteMapProps) {
   const points = stops.filter(located);
   const extentKey = points.map((p) => `${p.lat},${p.lng}`).join('|');
   const bounds = useMemo(
@@ -166,6 +185,21 @@ export function RouteMap({ stops, legs, layers = ALL_LAYERS, weather = [], maxZo
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [extentKey]
   );
+
+  const positionsKey = (nodePositions ?? []).map((p) => `${p.id}:${p.lat},${p.lng}`).join('|');
+  const nodePosition = useMemo(
+    () => new Map((nodePositions ?? []).flatMap((p) => (p.lat != null && p.lng != null ? [[p.id, [p.lat, p.lng] as [number, number]] as const] : []))),
+    // `positionsKey` fully describes `nodePositions`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [positionsKey]
+  );
+  // Cascade arcs render only when both props are given; otherwise the map is unchanged.
+  const cascadePaths = cascade?.length && nodePositions?.length
+    ? cascade
+        .filter((c) => c.fromNodeId !== 'weather')
+        .map((c) => ({ c, a: nodePosition.get(c.fromNodeId), b: nodePosition.get(c.toNodeId) }))
+        .filter((d): d is { c: CascadeLink; a: [number, number]; b: [number, number] } => !!d.a && !!d.b && positionKey(d.a) !== positionKey(d.b))
+    : [];
 
   const stopByCity = new Map(points.map((s) => [s.city, s]));
   const drawn = legs
@@ -198,6 +232,15 @@ export function RouteMap({ stops, legs, layers = ALL_LAYERS, weather = [], maxZo
             </Polyline>
           );
         })}
+        {cascadePaths.map(({ c, a, b }) => (
+          <Polyline
+            key={`cascade-${c.fromNodeId}-${c.toNodeId}`}
+            positions={cascadeArc(a, b)}
+            pathOptions={{ color: c.status === 'at-risk' || c.status === 'delayed' ? '#FBBF24' : '#FF5A5A', weight: 3.5, dashArray: '8 6', opacity: 0.95, className: 'ss-route-flow' }}
+          >
+            <Tooltip sticky>{`Cascade → ${statusLabel[c.status as NodeStatus] ?? c.status}`}</Tooltip>
+          </Polyline>
+        ))}
         {activeFlight && layers.flights && (() => {
           const path = arc([activeFlight.a.lat, activeFlight.a.lng], [activeFlight.b.lat, activeFlight.b.lng]);
           const i = Math.floor(path.length * 0.45);

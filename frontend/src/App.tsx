@@ -38,6 +38,11 @@ function AppContent() {
   /** Guided demo: reset → disruption → recovery options → apply & re-validate. */
   const runDemo = useCallback(async () => {
     if (demoRunning || isBusy) return;
+    if (trip.resettable === false) {
+      // The demo resets the trip first; only sample trips have an original state to go back to.
+      addToast('info', 'Guided demo needs a sample trip', 'Switch to one of the demo trips to run it - your own trips are never auto-disrupted.');
+      return;
+    }
     demoCancelledRef.current = false;
     setDemoRunning(true);
     addToast('info', 'Guided demo started', 'Watch Safar Sathi move from disruption to recovery.');
@@ -61,7 +66,7 @@ function AppContent() {
     } finally {
       setDemoRunning(false);
     }
-  }, [demoRunning, isBusy, resetTrip, triggerDisruption, applyRecoveryPlan, addToast, setDemoRunning, navigate]);
+  }, [demoRunning, isBusy, trip.resettable, resetTrip, triggerDisruption, applyRecoveryPlan, addToast, setDemoRunning, navigate]);
 
   useEffect(() => {
     if (loading || !trip.id) return;

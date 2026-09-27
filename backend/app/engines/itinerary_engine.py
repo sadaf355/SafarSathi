@@ -58,6 +58,7 @@ class ItineraryEngine:
                     location=node.location,
                     moment=node.scheduled_start,
                     dependency_count=dependency_count.get(node.id, 0),
+                    road=node.category == "transfer",
                 )
                 snapshots.append(
                     NodeRiskSnapshot(node.id, result, True, available, required, recommended)

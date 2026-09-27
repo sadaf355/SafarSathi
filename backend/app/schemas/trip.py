@@ -53,6 +53,8 @@ class EdgeOut(CamelModel):
     label: str | None = None
     type: str | None = None
     animated: bool = False
+    dependency_type: str = "soft"  # "hard" = must connect; "soft" = can slip
+    min_buffer_minutes: int = 0
 
 
 class TripDayOut(CamelModel):
@@ -78,6 +80,7 @@ class TripOut(CamelModel):
     health_score: int
     status: str
     days: list[TripDayOut]
+    resettable: bool = False  # only seeded demo trips can be reset to their original state
 
 
 class TripSummaryOut(CamelModel):

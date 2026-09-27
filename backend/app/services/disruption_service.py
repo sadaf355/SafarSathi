@@ -70,6 +70,21 @@ _LADAKH_DEFAULTS = {
 }
 
 
+# Which booking categories each disruption type can actually happen to.
+_ALLOWED_CATEGORIES = {
+    "flight-delay": {"flight", "return"},
+    "flight-cancellation": {"flight", "return"},
+    "airport-closure": {"flight", "return"},
+    "missed-connection": {"connection", "flight", "return"},
+    "hotel-conflict": {"hotel"},
+    "hotel-cancellation": {"hotel"},
+    "transfer-failure": {"transfer"},
+    "activity-cancellation": {"activity"},
+    "activity-delay": {"activity"},
+    "weather-disruption": {"activity", "flight", "return", "transfer", "hotel"},
+}
+
+
 class InvalidDisruptionError(Exception):
     pass
 
@@ -79,6 +94,10 @@ def _resolve_primary_node(nodes: list[ItineraryNode], disruption_type: str, requ
         node = next((n for n in nodes if n.id == requested), None)
         if node is None:
             raise InvalidDisruptionError(f"Unknown node id: {requested}")
+        allowed = _ALLOWED_CATEGORIES.get(disruption_type)
+        if allowed and node.category.value not in allowed:
+            label = _DISRUPTION_LABELS.get(disruption_type, disruption_type).lower()
+            raise InvalidDisruptionError(f"A {label} can't apply to '{node.title}' ({node.category.value}).")
         return node
 
     default_id = _LADAKH_DEFAULTS.get(disruption_type)
@@ -104,6 +123,74 @@ def _label_for(disruption_type: str, node: ItineraryNode, delay_minutes: int | N
     if disruption_type == "activity-delay" and delay_minutes:
         return f"Delay {node.title} by {delay_minutes} minutes"
     return f"{base}: {node.title}"
+
+
+_BOOKABLE = {"flight", "hotel", "transfer", "activity", "return"}
+
+
+def _join(titles: list[str]) -> str:
+    return titles[0] if len(titles) == 1 else ", ".join(titles[:-1]) + " and " + titles[-1]
+
+
+def disruption_narrative(nodes: list, primary_id: str, disruption_type: str, delay_minutes: int | None,
+                         impacts: dict, at_risk_value: float) -> str:
+    """Plain-language explanation of what the propagation engine computed:
+    what happened, what it breaks and why (buffers), what is only at risk, and
+    what is unaffected. Built only from the engine's output, so it is
+    deterministic and never states anything the cascade doesn't show."""
+    by_id = {n.id: n for n in nodes}
+    primary = by_id[primary_id]
+    if disruption_type in ("flight-delay", "activity-delay") and delay_minutes:
+        h, m = divmod(delay_minutes, 60)
+        opening = f"{primary.title} is running {f'{h}h ' if h else ''}{f'{m}m' if m else ''}".rstrip() + " late."
+    elif disruption_type.endswith("cancellation"):
+        opening = f"{primary.title} has been cancelled."
+    else:
+        opening = f"{_DISRUPTION_LABELS.get(disruption_type, disruption_type)} affects {primary.title}."
+    sentences = [opening]
+
+    ordered = sorted(nodes, key=lambda n: n.scheduled_start)
+    downstream = [n for n in ordered if n.id != primary_id and n.category.value in _BOOKABLE]
+    broken = [n for n in downstream if impacts[n.id].status in ("broken", "cancelled")]
+    at_risk = [n for n in downstream if impacts[n.id].status in ("at-risk", "delayed")]
+    safe = [n for n in downstream if impacts[n.id].status == "healthy"]
+
+    def root_cause(node_id: str):
+        """First real booking up the caused_by chain (skips connection markers)."""
+        seen: set[str] = set()
+        cid = impacts[node_id].caused_by
+        while cid and cid in by_id and cid not in seen:
+            seen.add(cid)
+            if by_id[cid].category.value in _BOOKABLE:
+                return by_id[cid]
+            cid = impacts[cid].caused_by
+        return None
+
+    for n in broken[:2]:
+        imp = impacts[n.id]
+        cause = root_cause(n.id)
+        if cause:
+            verb = "was cancelled" if impacts[cause.id].status == "cancelled" else "runs late"
+            because = f"Because {cause.title} {verb}, "
+        else:
+            because = "As a result, "
+        buffer = ""
+        if imp.available_buffer_minutes is not None and imp.required_buffer_minutes is not None:
+            buffer = f" - only {max(imp.available_buffer_minutes, 0)} of the {imp.required_buffer_minutes} minutes it needs remain"
+        sentences.append(f"{because}{n.title} can no longer be made{buffer}.")
+    if len(broken) > 2:
+        sentences.append(f"{len(broken) - 2} more booking(s) also break.")
+    if at_risk:
+        titles = [n.title for n in at_risk[:3]] + ([f"{len(at_risk) - 3} more"] if len(at_risk) > 3 else [])
+        sentences.append(f"{_join(titles)} {'is' if len(at_risk) == 1 else 'are'} at risk of a late arrival.")
+    if safe:
+        titles = [n.title for n in safe[:3]] + ([f"{len(safe) - 3} more"] if len(safe) > 3 else [])
+        sentences.append(f"{_join(titles)} {'is' if len(safe) == 1 else 'are'} unaffected.")
+    if not broken and not at_risk:
+        sentences.append("Your connection buffers absorb it - nothing else needs to change.")
+    elif at_risk_value > 0:
+        sentences.append(f"₹{at_risk_value:,.0f} of bookings are exposed.")
+    return " ".join(sentences)
 
 
 def trigger_disruption(
@@ -259,6 +346,7 @@ def trigger_disruption(
         refund_exposure=disruption.refund_exposure,
         cascade_steps=cascade_steps_out,
         detected_at=format_time(disruption.detected_at),
+        narrative=disruption_narrative(nodes, primary_node.id, request.type, request.delay_minutes, impacts, financial.at_risk_value),
     )
     impacts_out = [
         ImpactEntryOut(

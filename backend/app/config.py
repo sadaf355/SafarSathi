@@ -24,8 +24,18 @@ class Settings(BaseSettings):
     db_pool_recycle_seconds: int = 300
     weather_request_timeout_seconds: float = 3.0
     weather_total_timeout_seconds: float = 4.0
+    # Blend live Open-Meteo readings into the weather risk score (capped at ±20
+    # from the time-of-day heuristic). False = heuristic only, no network calls.
+    weather_risk_enabled: bool = True
+    # Pull real traveler posts from Mastodon's public hashtag timelines for the
+    # live signals feed. False = simulated signals only, no network calls.
+    social_signals_live_enabled: bool = True
+    geocoding_request_timeout_seconds: float = 3.0
+    # Real contact (email/URL) for Nominatim's User-Agent policy; omitted when unset.
+    geocoding_contact: str | None = None
     # When True, the three demo trips (Ladakh/Goa/Rajasthan) and the demo traveler are created on startup if they don't already exist. Must be False in any real deployment with real users - a real production database should start empty and grow only from real user signups and trip creation.
-    seed_demo_data: bool = False
+    # Unset = on in development (so "Continue as Demo Traveler" works out of the box), off everywhere else.
+    seed_demo_data: bool | None = None
 
     # --- Rate limits (SlowAPI syntax, per client IP) for costly endpoints ---
     disruption_rate_limit: str = "30/minute"
@@ -83,6 +93,10 @@ class Settings(BaseSettings):
     @property
     def is_development(self) -> bool:
         return self.environment.strip().lower() == "development"
+
+    @property
+    def should_seed_demo_data(self) -> bool:
+        return self.is_development if self.seed_demo_data is None else self.seed_demo_data
 
     def enforce_secure_auth_secret(self) -> None:
         """Refuses to proceed if this looks like a non-development deployment

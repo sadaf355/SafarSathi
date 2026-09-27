@@ -107,7 +107,7 @@ class AmadeusFlightProvider(FlightProvider):
                         destination=destination,
                         departure=datetime.fromisoformat(first["departure"]["at"]),
                         arrival=datetime.fromisoformat(last["arrival"]["at"]),
-                        cost=float(offer["price"]["grandTotal"]),
+                        cost=float(offer["price"].get("grandTotal") or offer["price"]["total"]),
                         tier="premium" if cabin in PREMIUM_CABINS else "standard",
                         # Self-service offers don't expose refund rules; assume the strict case.
                         refundable=False,
@@ -122,23 +122,30 @@ class AmadeusFlightProvider(FlightProvider):
 
     # ---- FlightProvider ----------------------------------------------------------------
 
-    def _live_or_none(self, origin: str, destination: str, after: datetime) -> list[ProviderAlternative] | None:
-        if not self.configured or not origin or not destination:
+    def _live_or_none(
+        self, origin: str, destination: str, after: datetime, include_next_day: bool = True
+    ) -> list[ProviderAlternative] | None:
+        if not self.configured or not origin or not destination or after == datetime.max:
             return None
         if time.monotonic() < self._paused_until:
             logger.info("Amadeus paused after rate limit; using simulated flights")
             return None
         try:
             found = self._search_live(origin, destination, after)
-            if len([o for o in found if o.departure >= after]) < 2:
+            if include_next_day and len([o for o in found if o.departure >= after]) < 2:
                 found += self._search_live(origin, destination, after + timedelta(days=1))
-            return found
+            # Offer ids are only unique within one response, so de-duplicate by
+            # the flight itself (the two day searches can overlap).
+            unique: dict[tuple[str, datetime], ProviderAlternative] = {}
+            for option in found:
+                unique.setdefault((option.confirmation_hint, option.departure), option)
+            return list(unique.values())
         except Exception as exc:
             logger.warning("Amadeus flight search failed (%s); falling back to simulated flights", exc)
             return None
 
     def search(self, origin: str, destination: str, date: str) -> list[ProviderAlternative]:
-        live = self._live_or_none(origin, destination, datetime.fromisoformat(date))
+        live = self._live_or_none(origin, destination, datetime.fromisoformat(date), include_next_day=False)
         return live if live else self.fallback.search(origin, destination, date)
 
     def get_alternatives(

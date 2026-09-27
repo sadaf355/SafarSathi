@@ -5,18 +5,25 @@ import { useRouter } from '@/lib/router';
 import * as api from '@/services/api';
 import { PageHero, LivePill } from '@/components/layout/PageHero';
 import { useShellActions } from '@/components/layout/ShellActions';
-import { AIRecoveryCard, BotAvatar, ChatInput, MessageBubble, PromptChip, TypingIndicator } from '@/components/ai/AssistantParts';
+import { AIRecoveryCard, ActionCard, BotAvatar, ChatInput, MessageBubble, PromptChip, TypingIndicator } from '@/components/ai/AssistantParts';
 import { DestinationImage } from '@/components/travel/DestinationImage';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { Modal } from '@/components/ui/Modal';
+import { useToast } from '@/components/ui/ToastProvider';
 import { sceneImages } from '@/lib/destinationImages';
-import { formatTime, legDelayMinutes, nodeKind, parseDate } from '@/lib/journey';
+import { formatINR, formatMinutes, formatTime, legDelayMinutes, nodeKind, parseDate } from '@/lib/journey';
 import { optionRoute, priorityOf, rankOptions } from '@/lib/recovery';
+import { riskTone, toneClasses } from '@/lib/status';
 import { cn } from '@/lib/utils';
-import type { ChatMessage, ItineraryNodeData } from '@/types';
+import type { ChatMessage, ItineraryNodeData, RecoveryOption } from '@/types';
 import { AlertCircle, BedDouble, Car, CircleHelp, Clock3, FileText, GitCompareArrows, PercentCircle, PhoneCall, Plane, PlaneTakeoff, RefreshCcw, Search, ShieldQuestion, Sparkles, TrainFront } from 'lucide-react';
 
 const stamp = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-const chatCache = new Map<string, ChatMessage[]>();
+/** A chat message plus the recovery plan the assistant proposed with it, if any. */
+type ThreadMessage = ChatMessage & { proposedOptionId?: string };
+/** The backend adds `proposedRecoveryId` when the assistant proposes a plan; it never applies it. */
+type AnswerWithProposal = api.AssistantAnswer & { proposedRecoveryId?: string | null };
+const chatCache = new Map<string, ThreadMessage[]>();
 const RECOVERY_INTENT = /recover|option|rebook|alternative|compare|fastest|cheap|comfort/i;
 
 const starterPrompts = [
@@ -35,12 +42,17 @@ const followUps = [
 ];
 
 export function AssistantPage() {
-  const { tripId, trip, recoveryOptions, preferences, selectedRecovery, selectRecovery, activeDisruption } = useApp();
+  const { tripId, trip, recoveryOptions, preferences, selectedRecovery, selectRecovery, activeDisruption, applyRecoveryPlan, appliedRecovery } = useApp();
   const { profile } = useAuth();
   const { navigate, params, consumeParams } = useRouter();
   const { openSimulate, openSupport } = useShellActions();
-  const [messages, setMessages] = useState<ChatMessage[]>(() => chatCache.get(tripId) ?? []);
+  const { addToast } = useToast();
+  const [messages, setMessages] = useState<ThreadMessage[]>(() => chatCache.get(tripId) ?? []);
   const [thinking, setThinking] = useState(false);
+  // The plan awaiting the traveler's explicit confirmation; nothing applies without it.
+  const [confirm, setConfirm] = useState<RecoveryOption | null>(null);
+  const [applying, setApplying] = useState(false);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const initials = (profile?.name ?? 'T').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
   const firstName = profile?.name.split(' ')[0] ?? 'there';
@@ -53,7 +65,7 @@ export function AssistantPage() {
 
   const send = useCallback(async (text: string) => {
     if (!text.trim() || thinking || !tripId) return;
-    const push = (m: Omit<ChatMessage, 'id' | 'timestamp'>) => setMessages((prev) => [...prev, { ...m, id: `${m.role}-${Date.now()}-${prev.length}`, timestamp: stamp() }]);
+    const push = (m: Omit<ThreadMessage, 'id' | 'timestamp'>) => setMessages((prev) => [...prev, { ...m, id: `${m.role}-${Date.now()}-${prev.length}`, timestamp: stamp() }]);
     push({ role: 'user', content: text });
     setThinking(true);
     try {
@@ -71,10 +83,14 @@ export function AssistantPage() {
             : `A ${minutes} min delay would be absorbed by your connection buffers — no downstream bookings are affected (trip health ${result.tripHealthScore}%). This was a dry run.`,
         });
       } else {
-        const answer = await api.askAssistant(tripId, text);
+        const answer: AnswerWithProposal = await api.askAssistant(tripId, text);
         const referenced = answer.references.filter((r) => r.type === 'recovery').map((r) => r.id).filter((id) => ranked.some((o) => o.id === id));
         const optionIds = referenced.length ? referenced : RECOVERY_INTENT.test(text) ? ranked.map((o) => o.id) : [];
-        push({ role: 'assistant', content: answer.content, references: answer.references, optionIds });
+        // Only a plan that is among the currently loaded options can be proposed;
+        // anything else is ignored rather than guessed at.
+        const proposed = answer.proposedRecoveryId ? ranked.find((o) => o.id === answer.proposedRecoveryId) : undefined;
+        push({ role: 'assistant', content: answer.content, references: answer.references, optionIds, proposedOptionId: proposed?.id });
+        if (proposed) setConfirm(proposed);
       }
     } catch (err) {
       push({ role: 'assistant', content: err instanceof api.ApiError && err.status !== 0 ? `I couldn't complete that: ${err.message}` : "I can't reach the travel intelligence service right now. Your trip data is still available on the Dashboard — please try again in a moment." });
@@ -94,11 +110,27 @@ export function AssistantPage() {
   }, [params.prompt, tripId, trip.id, consumeParams, send]);
 
   const openOption = (id: string) => { selectRecovery(id); navigate('recovery'); };
+
+  /** Runs only from the confirm dialog's button - the same apply path the Recovery page uses. */
+  const applyConfirmed = async () => {
+    if (!confirm) return;
+    setApplying(true);
+    try {
+      await applyRecoveryPlan(confirm.id);
+      addToast('success', 'Journey recovered', `${confirm.bookingsPreserved}/${confirm.totalBookings} commitments preserved.`);
+      setConfirm(null);
+    } catch {
+      addToast('error', 'Recovery could not be applied', 'Nothing was changed. Please try again.');
+    } finally {
+      setApplying(false);
+    }
+  };
   const contextNodes = trip.nodes.filter((n) => n.category !== 'connection' && n.category !== 'activity' && n.category !== 'return').slice(0, 4);
 
   return (
     <div className="animate-fade-in">
       <PageHero
+        crumbs={[{ label: 'Assistant' }]}
         title="Safar Sathi AI Assistant"
         titleAddon={<LivePill label="Online" />}
         subtitle={<span className="text-[17px] sm:text-lg">Get real-time insights, recovery options, and personalized travel support.</span>}
@@ -129,9 +161,16 @@ export function AssistantPage() {
               </div>
             )}
 
-            {messages.map((m) => (
+            {messages.map((m) => {
+              const proposal = m.proposedOptionId ? ranked.find((o) => o.id === m.proposedOptionId) : undefined;
+              return (
               <div key={m.id} className="space-y-3">
                 <MessageBubble message={m} initials={initials} />
+                {m.role === 'assistant' && proposal && appliedRecovery?.id !== proposal.id && (
+                  <div className="sm:pl-14">
+                    <ActionCard option={proposal} onReview={() => setConfirm(proposal)} />
+                  </div>
+                )}
                 {m.role === 'assistant' && m.optionIds && m.optionIds.length > 0 && (
                   <div className="grid grid-cols-1 gap-3 pl-0 md:grid-cols-2 xl:grid-cols-3 sm:pl-14">
                     {m.optionIds.map((id) => ranked.find((o) => o.id === id)).filter((o): o is NonNullable<typeof o> => !!o).map((o) => (
@@ -140,7 +179,8 @@ export function AssistantPage() {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
             {thinking && <TypingIndicator />}
             <div ref={endRef} />
           </div>
@@ -177,6 +217,26 @@ export function AssistantPage() {
           </section>
         </div>
       </div>
+
+      <Modal open={!!confirm} onClose={() => !applying && setConfirm(null)} title="Confirm recovery" subtitle="Sathi will not apply changes without your approval." initialFocusRef={cancelRef} hideCloseButton>
+        {confirm && (
+          <>
+            <div className="rounded-xl border border-line bg-canvas p-4">
+              <div className="text-sm font-semibold text-ink">{confirm.name}</div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-ink-soft">
+                <span>Additional cost <b className="block text-ink">{formatINR(Math.max(0, confirm.costDelta))}</b></span>
+                <span>Time impact <b className="block text-ink">{confirm.timeImpactMinutes ? `+${formatMinutes(confirm.timeImpactMinutes)}` : 'On time'}</b></span>
+                <span>Preserved <b className="block text-ink">{confirm.bookingsPreserved}/{confirm.totalBookings}</b></span>
+                <span>Residual risk <b className={cn('block capitalize', toneClasses[riskTone[confirm.residualRisk]].text)}>{confirm.residualRisk}</b></span>
+              </div>
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button ref={cancelRef} type="button" onClick={() => setConfirm(null)} disabled={applying} className="btn-ghost flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2">Cancel</button>
+              <button type="button" onClick={applyConfirmed} disabled={applying} className="btn-primary flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2">{applying ? 'Applying…' : 'Confirm & Apply'}</button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

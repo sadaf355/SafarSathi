@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowLeft, Loader2, Sparkles, WifiOff } from 'lucide-react';
+import { ArrowLeft, Check, Circle, Loader2, Sparkles, WifiOff } from 'lucide-react';
 import { DEMO_UNAVAILABLE_MESSAGE, useAuth } from '@/store/AuthContext';
 import { useToast } from '@/components/ui/ToastProvider';
 import { ApiError } from '@/services/api';
 import { Logo, ScriptTagline } from '@/components/brand/Logo';
 import { ItineraryBoard } from '@/components/brand/ItineraryArt';
 import { cn } from '@/lib/utils';
+import { PASSWORD_MAX_LENGTH, PASSWORD_RULES, isStrongPassword } from '@/lib/password';
 
 type Mode = 'login' | 'register';
 
@@ -18,6 +19,8 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
   const [password, setPassword] = useState('');
   const { addToast } = useToast();
   const demoUnavailable = error === DEMO_UNAVAILABLE_MESSAGE;
+  const registering = mode === 'register';
+  const weakPassword = registering && !isStrongPassword(password);
 
   const handleDemo = () => {
     continueAsDemo().catch((err) => {
@@ -27,6 +30,7 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+    if (weakPassword) return;
     const action = mode === 'login' ? loginWithPassword(email, password) : registerAccount(name, email, password);
     action.catch(() => {});
   };
@@ -73,7 +77,20 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
             </div>
             <div>
               <label htmlFor="password" className="mb-1 block text-xs font-medium text-ink-soft">Password</label>
-              <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="field" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+              <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="field" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} maxLength={registering ? PASSWORD_MAX_LENGTH : undefined} aria-describedby={registering ? 'password-rules' : undefined} aria-invalid={registering && password.length > 0 && weakPassword ? true : undefined} />
+              {registering && (
+                <ul id="password-rules" aria-label="Password requirements" className="mt-2 grid grid-cols-1 gap-1 text-xs sm:grid-cols-2">
+                  {PASSWORD_RULES.map((rule) => {
+                    const met = rule.test(password);
+                    return (
+                      <li key={rule.label} className={cn('flex items-center gap-1.5', met ? 'text-safe' : 'text-ink-muted')}>
+                        {met ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Circle className="h-3 w-3" aria-hidden="true" />}
+                        <span>{rule.label}<span className="sr-only">{met ? ' (met)' : ' (missing)'}</span></span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
 
             {wakingServer && !error && <p className="text-xs text-ink-muted">Waking up the Safar Sathi server — the first request can take up to a minute.</p>}
@@ -84,7 +101,7 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
               </div>
             )}
 
-            <button type="submit" disabled={busy} className="btn-primary w-full py-3">
+            <button type="submit" disabled={busy || weakPassword} className="btn-primary w-full py-3">
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
               {mode === 'login' ? 'Log In' : 'Create Account'}
             </button>

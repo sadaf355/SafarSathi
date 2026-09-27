@@ -83,7 +83,7 @@ export function BookingsPage() {
 
   return (
     <div className="animate-fade-in">
-      <PageHero title="My Bookings" subtitle="All your travel plans in one place." art={<ItineraryStrip />} />
+      <PageHero crumbs={[{ label: 'My Bookings' }]} title="My Bookings" subtitle="All your travel plans in one place." art={<ItineraryStrip />} />
 
       <div className="relative z-10 space-y-5">
         <div className="card flex flex-col gap-3 p-2.5 lg:flex-row lg:items-center">

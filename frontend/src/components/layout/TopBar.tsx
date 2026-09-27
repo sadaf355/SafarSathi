@@ -83,10 +83,11 @@ function Notifications() {
 
 function ProfileMenu({ onRunDemo, onReset }: { onRunDemo: () => void; onReset: () => void }) {
   const { profile, logout, dataMode } = useAuth();
-  const { phase, demoRunning, isBusy } = useApp();
+  const { phase, demoRunning, isBusy, trip } = useApp();
   const { navigate } = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
+  const canReset = trip.resettable !== false; // your own trips have no original snapshot to restore
   const name = profile?.name ?? 'Traveler';
   const first = name.split(' ')[0];
   const initials = name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
@@ -111,7 +112,7 @@ function ProfileMenu({ onRunDemo, onReset }: { onRunDemo: () => void; onReset: (
           </div>
           <div className="my-1 h-px bg-line" />
           <MenuItem icon={PlayCircle} label={demoRunning ? 'Guided demo running…' : 'Run guided demo'} disabled={demoRunning || isBusy} onClick={run(onRunDemo)} />
-          <MenuItem icon={RotateCcw} label="Reset journey" disabled={phase === 'idle' || demoRunning || isBusy} onClick={run(onReset)} />
+          <MenuItem icon={RotateCcw} label="Reset journey" disabled={!canReset || phase === 'idle' || demoRunning || isBusy} onClick={run(onReset)} />
           <MenuItem icon={Sparkles} label="Ask AI Assistant" onClick={run(() => navigate('assistant'))} />
           <MenuItem icon={Settings} label="Settings" onClick={run(() => navigate('settings'))} />
           <div className="my-1 h-px bg-line" />

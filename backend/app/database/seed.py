@@ -599,6 +599,10 @@ def seed_if_empty(db: Session) -> None:
     db.commit()
 
 
+# Only the seeded demo trips have a known original state to reset to.
+RESETTABLE_TRIP_IDS = frozenset({LADAKH_TRIP_ID, GOA_TRIP_ID, RAJASTHAN_TRIP_ID})
+
+
 def reset_trip(db: Session, trip_id: str) -> Trip | None:
     traveler_id = DEFAULT_TRAVELER_ID
     builders = {

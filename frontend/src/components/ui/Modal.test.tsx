@@ -46,4 +46,20 @@ describe('Modal Component', () => {
     fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
     expect(handleClose).toHaveBeenCalledTimes(1);
   });
+
+  it("without the header close button, Tab cycles only the dialog's own actions", () => {
+    render(
+      <Modal open onClose={() => {}} title="Confirm recovery" hideCloseButton>
+        <button>Cancel</button>
+        <button>Confirm</button>
+      </Modal>
+    );
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull();
+    const [cancel, confirm] = ['Cancel', 'Confirm'].map((n) => screen.getByRole('button', { name: n }));
+    confirm.focus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(document.activeElement).toBe(cancel);
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(confirm);
+  });
 });

@@ -48,6 +48,14 @@ CONSOLE_FORMAT = "%(asctime)s %(levelname)-7s [%(request_id)s] %(name)s: %(messa
 
 
 def configure_logging(log_format: str = "console", level: str = "INFO") -> None:
+    # Messages contain ₹ and →; a legacy Windows console (cp1252) can't encode
+    # them and every such log line would fail with a "--- Logging error ---".
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        try:
+            reconfigure(errors="backslashreplace")
+        except (ValueError, OSError):
+            pass
     handler = logging.StreamHandler(sys.stdout)
     handler.addFilter(RequestIdFilter())
     handler.setFormatter(JsonFormatter() if log_format == "json" else logging.Formatter(CONSOLE_FORMAT))

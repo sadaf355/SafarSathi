@@ -1,29 +1,48 @@
 """Ground-level crowd & social signals for the hubs on a trip.
 
-There is no crowd-report data feed connected to Safar Sathi, so these signals
-are *synthesized* from real inputs - the live Open-Meteo conditions at each hub
-(or a Digital Twin scenario) and the bookings scheduled there - using simple,
-documented rules. Every signal is labelled source="simulated" and the UI says
-so. Output is deterministic for the same inputs, so the ticker is stable
-between polls and the twin's confidence scoring is reproducible.
+Live feed (trip_signals): for each hub, real public posts from its Mastodon
+hashtag timeline come first (source="mastodon" - zero-auth public endpoint, no
+API key; see providers/mastodon_signal_provider.py). Public endpoints
+rate-limit unauthenticated clients and most city hashtags are unrelated
+chatter, so when no recent, relevant post is available the hub falls back to
+signals *synthesized* from its live Open-Meteo conditions, labelled
+source="simulated". The UI shows which is which.
 
-Signal intensity (0..1) feeds the Digital Twin: corroborating ground signals
-at a booking's location raise its failure probability and narrow the
-uncertainty band.
+Scenario feed (scenario_signals) is always synthesized: it describes a
+hypothetical storm, and its signal intensity (0..1) feeds the Digital Twin -
+corroborating ground signals raise a booking's failure probability and narrow
+the uncertainty band - so it must stay deterministic for the same inputs.
 """
 
 from __future__ import annotations
 
 import hashlib
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.engines.digital_twin_engine import WeatherScenario
+from app.providers.mastodon_signal_provider import MastodonSignalProvider, PublicPost
 from app.repositories.node_repository import NodeRepository
 from app.schemas.social_signals import SocialSignalOut, SocialSignalsOut
 from app.services import weather_service
 from app.services.trip_service import get_trip
+
+_public_posts = MastodonSignalProvider()
+
+# Real posts are free text: classify by keywords into the ticker's signal types.
+_KIND_RULES = [
+    ("road_waterlogging", re.compile(r"\b(flood\w*|waterlog\w*|inundat\w*)\b", re.I)),
+    ("transit_strike", re.compile(r"\b(strike|bandh|shutdown)\b", re.I)),
+    ("crowd_surge", re.compile(r"\b(crowd\w*|queue\w*|rush)\b", re.I)),
+    ("airport_congestion", re.compile(r"\b(airport|flight\w*|runway|delay\w*)\b", re.I)),
+]
+_SEVERE_RE = re.compile(r"\b(flood\w*|cancel\w*|closed|stranded|cyclone|storm|red alert|landslide)\b", re.I)
 
 
 @dataclass(frozen=True)
@@ -117,16 +136,69 @@ def _summarize(trip_id: str, signals: list[SocialSignalOut]) -> SocialSignalsOut
                             overall_sentiment=overall, summary=summary)
 
 
+def signal_from_post(hub: dict, post: PublicPost, now: datetime) -> SocialSignalOut:
+    """A real public post as a ticker signal (type and urgency from its wording)."""
+    kind = next((k for k, rx in _KIND_RULES if rx.search(post.text)), "weather_warning")
+    intensity = 0.7 if _SEVERE_RE.search(post.text) else 0.45
+    return SocialSignalOut(
+        id=f"mastodon-{post.id}", type=kind, location=hub["name"], lat=hub["lat"], lng=hub["lng"],
+        node_ids=list(hub["nodes"]), urgency=_urgency(intensity), sentiment=round(-0.2 - 0.5 * intensity, 2),
+        intensity=intensity, text=post.text, minutes_ago=max(0, int((now - post.created_at).total_seconds() // 60)),
+        source="mastodon", url=post.url or None,
+    )
+
+
 def trip_signals(db: Session, trip_id: str, traveler_id: str | None = None) -> SocialSignalsOut:
-    """Signals from the live weather at each hub right now."""
+    """Signals for each hub right now: real public posts when available,
+    otherwise synthesized from the hub's live weather."""
     get_trip(db, trip_id, traveler_id)
     nodes = NodeRepository(db).list_for_trip(trip_id)
+    hubs = _hubs(nodes)
+    now_utc = datetime.now(timezone.utc)
+    posts_by_hub = _posts_for_hubs(hubs, now_utc) if get_settings().social_signals_live_enabled else {}
+
+    seen_posts: set[str] = set()  # two hubs can share a hashtag (e.g. Leh and Leh airport)
     signals: list[SocialSignalOut] = []
-    for hub in _hubs(nodes):
-        now = weather_service.get_forecast(hub["lat"], hub["lng"]).current
+    fallback: list[dict] = []
+    for hub in hubs:
+        real = [p for p in (posts_by_hub.get(hub["name"]) or []) if p.id not in seen_posts]
+        if real:
+            seen_posts.update(p.id for p in real)
+            signals += [signal_from_post(hub, p, now_utc) for p in real]
+        else:
+            fallback.append(hub)
+
+    forecasts = weather_service._forecasts_for({(h["lat"], h["lng"]) for h in fallback})  # fetched in parallel
+    for hub in fallback:
+        now = forecasts[(hub["lat"], hub["lng"])].current
         conditions = HubConditions(now.rainfall_mm, now.wind_speed_kmh, now.visibility_m, now.temperature_c)
         signals += signals_for_conditions(hub, conditions, salt=f"{trip_id}:{now.time:%Y%m%d%H}")
     return _summarize(trip_id, signals)
+
+
+LIVE_POSTS_BUDGET_SECONDS = 4.0
+
+
+def _posts_for_hubs(hubs: list[dict], now: datetime) -> dict[str, list[PublicPost] | None]:
+    """Look up every hub's public posts at once, within one overall time budget;
+    a hub whose lookup isn't back in time simply falls back to simulated."""
+    names = list(dict.fromkeys(h["name"] for h in hubs))
+    if not names:
+        return {}
+    pool = ThreadPoolExecutor(max_workers=min(6, len(names)), thread_name_prefix="social-signals")
+    futures = {pool.submit(_public_posts.recent_posts, name, 3, now): name for name in names}
+    found: dict[str, list[PublicPost] | None] = {}
+    try:
+        for future in as_completed(futures, timeout=LIVE_POSTS_BUDGET_SECONDS):
+            try:
+                found[futures[future]] = future.result()
+            except Exception:
+                found[futures[future]] = None
+    except FuturesTimeoutError:
+        pass
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+    return found
 
 
 def scenario_signals(trip_id: str, nodes: list, scenario: WeatherScenario) -> SocialSignalsOut:

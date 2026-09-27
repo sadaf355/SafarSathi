@@ -138,8 +138,8 @@ def poll_risk_once(
     traveler_id: str = Depends(get_current_traveler_id),
 ):
     try:
-        trip_service.get_trip(db, trip_id, traveler_id)
-        notifications = risk_prediction_service.run_risk_prediction_cycle(db, trip_id=trip_id)
+        trip = trip_service.get_trip(db, trip_id, traveler_id)
+        notifications = risk_prediction_service.predict_trip(db, trip)
         return [
             NotificationOut(
                 id=n.id,

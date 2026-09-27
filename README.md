@@ -153,7 +153,7 @@ An integrated AI Copilot provides contextual explanations and recommendations, b
 - **Q&A Assistant**: grounded directly in live trip, disruption, and recovery state. Capable of answering questions like "Why did my transfer break?" and "What is the fastest recovery?". Falls back to a keyword-based deterministic responder when `ANTHROPIC_API_KEY` is unset or the call fails.
 - **Generative recovery narratives**: each ranked recovery option gets a plain-language, 2-3 sentence explanation grounded in its real cost/time/preservation/score data, shown in a "✦ Why this option" panel in the Recovery Center. Falls back to no panel (never a broken or stale placeholder) without a key.
 - **Generative disruption narratives**: the "✦ SAFARSATHI INSIGHT" summary on the Impact Analysis panel is LLM-generated from the real disruption and cascade data when a key is configured, falling back to the original templated sentence otherwise.
-- **Natural-language / voice disruption reporting**: the "Smart reporting" box on the disruption modal extracts a structured `{type, delayMinutes, nodeId}` report from free-text (typed or spoken via the browser's Web Speech API) using an LLM call with strict JSON-only, "never invent a fact not in the data" discipline. Falls back to a deterministic regex/keyword extractor (ported 1:1 from the original client-side logic) when the LLM is unavailable - the traveler always sees the same "I understood: ..." confirmation card before anything is submitted.
+- **Natural-language disruption reporting**: the "Smart reporting" box on the disruption modal extracts a structured `{type, delayMinutes, nodeId}` report from typed free text (voice input is not implemented yet), matching the booking by flight number, airport codes, city names ("my Delhi to Leh flight") or booking name ("Pangong tour"); a "Which booking?" picker lets the traveler confirm or change it. The backend uses an LLM call with strict JSON-only, "never invent a fact not in the data" discipline. Falls back to a deterministic regex/keyword extractor (ported 1:1 from the original client-side logic) when the LLM is unavailable - the traveler always sees the same "I understood: ..." confirmation card before anything is submitted.
 - All four AI paths share the same contract: check for `ANTHROPIC_API_KEY` first, wrap the call in a broad `try/except`, log a warning on failure, and never raise - a bad key, outage, or malformed response degrades gracefully instead of breaking the flow.
 
 ## 17. Activity Log
@@ -240,8 +240,8 @@ The codebase is thoroughly verified with comprehensive test suites:
 
 | Suite | Status | Details |
 | :--- | :--- | :--- |
-| **Backend Unit & Engine Tests** | **175 tests, 171 passed, 4 skipped, 0 failed** | `pytest app/tests/ -q`, verified against a full run |
-| **Frontend Unit & Component Tests** | **105 tests, 105 passed, 0 failed** | `npx vitest run`, verified against a full run |
+| **Backend Unit & Engine Tests** | **327 tests, 323 passed, 4 skipped, 0 failed** | `pytest app/tests/ -q`, verified against a full run (the 4 skips need a reachable Postgres) |
+| **Frontend Unit & Component Tests** | **135 tests, 135 passed, 0 failed** | `npx vitest run`, verified against a full run |
 | **Frontend type check / lint / build** | **Passing** | `npm run typecheck`, `npm run lint`, `npm run build` all clean |
 | **Browser E2E Flow** | **Not shipped** | No Playwright/Cypress suite is present in this archive |
 | **Python syntax** | **Verified** | Backend source compiles with `py_compile` |
@@ -372,7 +372,7 @@ python -m venv .venv
 copy .env.example .env
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
-Backend will be available at `http://localhost:8000` (Swagger docs at `http://localhost:8000/docs`).
+Backend will be available at `http://localhost:8000` (Swagger docs at `http://localhost:8000/docs`). With `ENVIRONMENT=development` (the `.env.example` default) the three demo trips and the demo traveler are seeded on first start; set `SEED_DEMO_DATA=false` to start empty. For a Postgres database, run `alembic upgrade head` first.
 
 ### 2. Start Frontend
 ```powershell

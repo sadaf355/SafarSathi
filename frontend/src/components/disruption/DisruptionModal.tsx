@@ -31,6 +31,23 @@ const iconMap: Record<string, typeof Clock> = {
 };
 
 const DELAY_BASED_TYPES = new Set(['flight-delay', 'activity-delay']);
+const PREVIEW_DEBOUNCE_MS = 300;
+
+/** Which bookings each disruption type can happen to (mirrors the backend's
+ * check, which rejects e.g. a "flight delay" on a hotel). */
+const FLIGHTS = ['flight', 'return', 'train'];
+const ALLOWED_CATEGORIES: Record<string, string[]> = {
+  'flight-delay': FLIGHTS,
+  'flight-cancellation': FLIGHTS,
+  'airport-closure': FLIGHTS,
+  'missed-connection': ['connection', ...FLIGHTS],
+  'hotel-conflict': ['hotel'],
+  'hotel-cancellation': ['hotel'],
+  'transfer-failure': ['transfer'],
+  'activity-cancellation': ['activity'],
+  'activity-delay': ['activity'],
+  'weather-disruption': ['activity', 'transfer', 'hotel', ...FLIGHTS],
+};
 
 interface DisruptionModalProps {
   open: boolean;
@@ -45,30 +62,46 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
   const [preview, setPreview] = useState<api.PropagationResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [smartText, setSmartText] = useState('');
-  const [understood, setUnderstood] = useState<{ label: string; nodeId?: string } | null>(null);
+  const [understood, setUnderstood] = useState<{ label: string } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  /** The booking this disruption applies to; undefined = let Safar Sathi pick. */
+  const [nodeId, setNodeId] = useState<string | undefined>(undefined);
 
   const delayMinutes = DELAY_BASED_TYPES.has(selected) ? delayMinutesInput : undefined;
+  const allowed = ALLOWED_CATEGORIES[selected] ?? [];
+  const candidates = trip.nodes.filter((n) => allowed.includes(n.category));
+  // A booking chosen for one type may not fit another (a hotel can't have a flight delay).
+  const primaryNodeId = nodeId && candidates.some((n) => n.id === nodeId) ? nodeId : undefined;
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setPreviewLoading(true);
-    api
-      .simulateDisruption(tripId, { type: selected, delayMinutes })
-      .then((result) => {
-        if (!cancelled) setPreview(result);
-      })
-      .catch(() => {
-        if (!cancelled) setPreview(null);
-      })
-      .finally(() => {
-        if (!cancelled) setPreviewLoading(false);
-      });
+    // Debounced: dragging the delay slider would otherwise fire a request per
+    // 5-minute step and run into the endpoint's rate limit.
+    const timer = setTimeout(() => {
+      api
+        .simulateDisruption(tripId, { type: selected, delayMinutes, primaryNodeId })
+        .then((result) => {
+          if (!cancelled) setPreview(result);
+        })
+        .catch(() => {
+          if (!cancelled) setPreview(null);
+        })
+        .finally(() => {
+          if (!cancelled) setPreviewLoading(false);
+        });
+    }, PREVIEW_DEBOUNCE_MS);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [open, tripId, selected, delayMinutes]);
+  }, [open, tripId, selected, delayMinutes, primaryNodeId]);
+
+  const chooseType = (type: DisruptionType['id']) => {
+    setSelected(type);
+    setUnderstood(null); // the "I understood" card described the previous choice
+  };
 
 
   /** Prefer the backend extractor (airline SMS/email formats, booking matching,
@@ -82,7 +115,8 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
         if (DELAY_BASED_TYPES.has(result.type) && result.delayMinutes) {
           setDelayMinutesInput(Math.max(15, Math.min(360, Math.round(result.delayMinutes / 5) * 5)));
         }
-        setUnderstood({ label: `${result.summary} (${Math.round(result.confidence * 100)}% confident)`, nodeId: result.primaryNodeId ?? undefined });
+        setUnderstood({ label: `${result.summary} (${Math.round(result.confidence * 100)}% confident)` });
+        setNodeId(result.primaryNodeId ?? undefined);
         return;
       }
       if (!result.type) {
@@ -107,12 +141,13 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
     const type = isWeather ? 'weather-disruption' : text.includes('cancel') ? 'flight-cancellation' : text.includes('miss') && text.includes('connection') ? 'missed-connection' : text.includes('hotel') ? 'hotel-conflict' : 'flight-delay';
     setSelected(type as DisruptionType['id']);
     if (DELAY_BASED_TYPES.has(type)) setDelayMinutesInput(Math.max(15, Math.min(360, Math.round(minutes / 5) * 5)));
-    setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${minutes} min` : 'Disruption detected'}` : `${type.replace(/-/g, ' ')} · ${minutes} min`, nodeId: node?.id });
+    setUnderstood({ label: node ? `${node.title} · ${DELAY_BASED_TYPES.has(type) ? `Delayed by ${minutes} min` : 'Disruption detected'}` : `${type.replace(/-/g, ' ')} · ${minutes} min` });
+    setNodeId(node?.id);
   };
 
   const handleTrigger = async () => {
     onClose();
-    await triggerDisruption(selected, { delayMinutes, primaryNodeId: understood?.nodeId });
+    await triggerDisruption(selected, { delayMinutes, primaryNodeId });
     navigate('recovery');
   };
 
@@ -139,7 +174,7 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
             return (
               <button
                 key={dt.id}
-                onClick={() => setSelected(dt.id)}
+                onClick={() => chooseType(dt.id)}
                 className={cn(
                   'flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition-all',
                   active ? 'border-safar-blue/40 bg-safar-blue/10' : 'border-line bg-white hover:border-line-strong hover:bg-canvas'
@@ -154,6 +189,22 @@ export function DisruptionModal({ open, onClose }: DisruptionModalProps) {
             );
           })}
         </div>
+
+        {candidates.length > 0 && (
+          <label className="block rounded-lg border border-line bg-white p-4">
+            <span className="mb-2 block text-xs font-medium text-ink">Which booking?</span>
+            <select
+              value={primaryNodeId ?? ''}
+              onChange={(e) => setNodeId(e.target.value || undefined)}
+              className="w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-sm text-ink focus:border-safar-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-safar-blue/30"
+            >
+              <option value="">Let Safar Sathi choose the most likely booking</option>
+              {candidates.map((n) => (
+                <option key={n.id} value={n.id}>{n.title}{n.scheduledTime ? ` · ${n.scheduledTime}` : ''}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {DELAY_BASED_TYPES.has(selected) && (
           <div className="rounded-lg border border-line bg-white p-4 animate-fade-in">

@@ -259,7 +259,7 @@ def test_activity_conflict_resolution_converges_on_chained_conflicts():
     assert final_impacts["activity-b"].status != "at-risk"
 
 
-def test_no_recovery_needed_when_nothing_is_broken():
+def test_keep_current_plan_when_nothing_is_broken():
     nodes = ladakh_nodes()
     edges = ladakh_edges()
     healthy_impacts = PropagationEngine().propagate(
@@ -273,7 +273,12 @@ def test_no_recovery_needed_when_nothing_is_broken():
     plans = _engine().generate_plans(
         nodes, edges, healthy_impacts, "bom-del", "flight-delay", 0, datetime(2025, 9, 12, 6, 30), DEFAULT_PREFERENCES
     )
-    assert plans == []
+    # Nothing to fix: one explicit, feasible "keep your plan" option that changes
+    # no booking, rather than an empty list the UI can't explain.
+    assert len(plans) == 1
+    keep = plans[0]
+    assert keep.key == "keep-current" and keep.feasible and keep.actions == []
+    assert keep.bookings_preserved == keep.total_bookings
 
 
 class _HotelRebookProvider(HotelProvider):

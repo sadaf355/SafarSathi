@@ -21,6 +21,29 @@ _financial_engine = FinancialEngine()
 _settings = get_settings()
 _weather_provider = OpenMeteoWeatherProvider(timeout_seconds=_settings.weather_request_timeout_seconds)
 
+# Time-of-day weather heuristic (TRD §3.1.1): bookings before 06:00 or from 20:00
+# carry more weather/operations exposure. Deterministic baseline for the blend.
+_WEATHER_HEURISTIC_BASE = 8  # the long-standing neutral weather score
+_WEATHER_HEURISTIC_ODD_HOURS_WEIGHT = 30
+_WEATHER_ODD_HOUR_BEFORE, _WEATHER_ODD_HOUR_FROM = 6, 20
+
+
+def _time_of_day_weather_heuristic(nodes: list) -> int:
+    """Base score plus up to 30 points for the share of bookings scheduled in
+    the early-morning/late-night window. Pure function of the itinerary."""
+    if not nodes:
+        return _WEATHER_HEURISTIC_BASE
+    odd = sum(1 for n in nodes if n.scheduled_start.hour < _WEATHER_ODD_HOUR_BEFORE or n.scheduled_start.hour >= _WEATHER_ODD_HOUR_FROM)
+    return min(100, _WEATHER_HEURISTIC_BASE + round(_WEATHER_HEURISTIC_ODD_HOURS_WEIGHT * odd / len(nodes)))
+
+
+def _blend_live_weather(heuristic_score: int, live_severity: int, cap: int = 20) -> int:
+    """Blend live weather severity into the time-of-day heuristic, capped at ±cap so a
+    single live reading can never swing the score more than `cap` points from the
+    heuristic baseline — this keeps output deterministic and bounded."""
+    delta = max(-cap, min(cap, live_severity - heuristic_score))
+    return heuristic_score + delta
+
 
 def get_risk_analysis(db: Session, trip_id: str) -> RiskAnalysisOut:
     get_trip(db, trip_id)
@@ -47,14 +70,14 @@ def get_risk_analysis(db: Session, trip_id: str) -> RiskAnalysisOut:
     vendor_risk = round(
         sum(s.result.risk_percent for s in exposure_snapshots) / len(exposure_snapshots)
     ) if exposure_snapshots else 10
-    # Weather is a live external signal now.  Score the actual conditions at each
-    # node's coordinates and scheduled hour instead of using the old time-of-day
-    # heuristic.  A provider failure is deliberately non-fatal: the rest of the
-    # risk analysis remains available and we use a neutral fallback only for the
-    # weather dimension.
+    # Weather starts from the deterministic time-of-day heuristic. When enabled,
+    # live Open-Meteo conditions at each node's coordinates and scheduled hour
+    # nudge it by at most ±20 points (_blend_live_weather). A provider failure is
+    # deliberately non-fatal: the heuristic score is used unchanged.
     weather_snapshots = []
     weather_nodes = [n for n in nodes if n.lat is not None and n.lng is not None]
-    if weather_nodes:
+    heuristic_weather = _time_of_day_weather_heuristic(weather_nodes)
+    if weather_nodes and _settings.weather_risk_enabled:
         # Weather is an external dependency. Fetch node snapshots concurrently so
         # one slow location does not multiply the Open-Meteo timeout by every node.
         # The entire weather dimension has a bounded budget; if the budget expires,
@@ -78,7 +101,11 @@ def get_risk_analysis(db: Session, trip_id: str) -> RiskAnalysisOut:
     # WeatherSnapshot itself exposes the scored risk; the future result above is
     # converted below so this list stays deliberately tolerant of provider errors.
     weather_risk_values = [snapshot.risk_percent for snapshot in weather_snapshots]
-    weather_risk = round(sum(weather_risk_values) / len(weather_risk_values)) if weather_risk_values else 8
+    if weather_risk_values:
+        live_severity = round(sum(weather_risk_values) / len(weather_risk_values))
+        weather_risk = _blend_live_weather(heuristic_weather, live_severity)
+    else:
+        weather_risk = heuristic_weather
 
     score = RiskScoreOut(
         trip_resilience=resilience,

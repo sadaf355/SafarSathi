@@ -80,6 +80,10 @@ def repropagate(trip_id: str, request: Request, db: Session = Depends(get_db), t
             for s in disruption.cascade_steps
         ],
         detected_at=format_time(disruption.detected_at),
+        narrative=disruption_service.disruption_narrative(
+            nodes, disruption.primary_node_id, disruption.type.value, disruption.delay_minutes,
+            result.impacts, disruption.financial_exposure,
+        ),
     )
     impacts_out = [
         ImpactEntryOut(
@@ -159,6 +163,9 @@ def simulate_disruption(
         refund_exposure=financial.potential_refund,
         cascade_steps=[],
         detected_at=format_time(detected_at),
+        narrative=disruption_service.disruption_narrative(
+            nodes, primary_node.id, payload.type, payload.delay_minutes, result.impacts, financial.at_risk_value,
+        ),
     )
     impacts_out = [
         ImpactEntryOut(

@@ -13,7 +13,7 @@ import type {
 import { getStoredToken } from '@/lib/authStorage';
 import { demoBackend, DemoConflictError, DemoNotFoundError } from '@/services/demoBackend';
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://127.0.0.1:8008';
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://127.0.0.1:8000';
 
 /** 'live' talks to the FastAPI backend; 'demo' serves the same contract from
  * the in-memory offline demo (services/demoBackend.ts). Chosen at sign-in. */
@@ -119,7 +119,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   } catch (err) {
     // status 0 = client-side network/abort failure, not a real 4xx/5xx from
     // the server - exactly what a cold, still-waking backend looks like.
-    if (err instanceof ApiError && err.status === 0) {
+    // Only reads are retried: a POST that timed out may already have run on
+    // the server, and replaying it would apply a disruption/recovery twice.
+    const method = (options.method ?? 'GET').toUpperCase();
+    if (err instanceof ApiError && err.status === 0 && method === 'GET') {
       coldStartHandler?.();
       return await attempt<T>(path, options, COLD_START_TIMEOUT_MS);
     }
@@ -370,6 +373,14 @@ export async function generateRecoveryOptions(tripId: string): Promise<RecoveryO
   return post<RecoveryOption[]>(`/api/trips/${tripId}/recovery-options/generate`);
 }
 
+/** Plans already generated for the active disruption. Read-only - unlike
+ * generateRecoveryOptions it never recreates plans or logs activity, so it is
+ * safe to call on every page load. */
+export async function listRecoveryOptions(tripId: string): Promise<RecoveryOption[]> {
+  if (isDemo()) return viaDemo(() => demoBackend.listRecoveryOptions(tripId));
+  return get<RecoveryOption[]>(`/api/trips/${tripId}/recovery-options`);
+}
+
 export async function applyRecovery(tripId: string, recoveryId: string): Promise<ApplyRecoveryResult> {
   if (isDemo()) return viaDemo(() => demoBackend.applyRecovery(tripId, recoveryId));
   return post<ApplyRecoveryResult>(`/api/trips/${tripId}/recovery/apply`, { recoveryId });
@@ -454,7 +465,9 @@ export interface NodeWeather {
   vulnerabilityIndex: number;
   /** WVI x forecast risk (0-100). */
   exposure: number;
-  source: 'open-meteo' | 'fallback' | 'unavailable';
+  /** "open-meteo-current": the booking is outside the 7-day forecast window, so
+   * these are the live conditions at that place right now. */
+  source: 'open-meteo' | 'open-meteo-current' | 'fallback' | 'unavailable';
 }
 
 export interface TripWeather {
@@ -479,7 +492,10 @@ export interface SocialSignal {
   intensity: number;
   text: string;
   minutesAgo: number;
-  source: 'simulated';
+  /** "mastodon": a real public post; "simulated": synthesized from the hub's weather. */
+  source: 'simulated' | 'mastodon';
+  /** Link to the original post (real signals only). */
+  url?: string | null;
 }
 
 export interface SocialSignals {

@@ -26,6 +26,10 @@ class AssistantResponse(CamelModel):
     content: str
     references: list[AssistantReference] = []
     source: str  # "llm" | "deterministic"
+    # Set only when the assistant proposes applying a specific recovery plan. The
+    # backend never applies it: the frontend must get explicit user confirmation
+    # before calling the existing /recovery/apply endpoint.
+    proposed_recovery_id: str | None = None
 
 
 class RecoveryNarrativeRequest(CamelModel):

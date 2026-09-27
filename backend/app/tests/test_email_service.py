@@ -72,4 +72,4 @@ def test_disruption_and_recovery_emails_are_dispatched(client, caplog):
         assert client.post("/api/trips/trip-ladakh-2025/recovery/apply", json={"recoveryId": plan["id"]}).status_code == 200
     assert "Disruption detected" in caplog.text
     assert "Recovery applied" in caplog.text
-    assert "aisha.khan@email.com" in caplog.text
+    assert "aisha.khan@example.com" in caplog.text

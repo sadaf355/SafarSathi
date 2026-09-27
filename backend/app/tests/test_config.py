@@ -79,8 +79,9 @@ class TestEngineKwargsFor:
 
 class TestRiskPredictionSettings:
     def test_risk_prediction_settings_defaults(self):
+        # Off by default: the scheduler calls live weather for every trip, so it is opt-in.
         settings = _settings()
-        assert settings.risk_prediction_enabled is True
+        assert settings.risk_prediction_enabled is False
         assert settings.risk_prediction_interval_minutes == 15
 
     def test_risk_prediction_settings_overrides(self):

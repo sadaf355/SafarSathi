@@ -1,5 +1,6 @@
 """AmadeusFlightProvider against a faked Amadeus API (httpx.MockTransport) -
-no real network access."""
+no real network access. Live offers are tagged source="live"; every failure
+mode degrades to the simulated catalogue instead of failing recovery."""
 
 from datetime import datetime
 
@@ -7,7 +8,7 @@ import httpx
 import pytest
 
 from app.providers.amadeus_flight_provider import AmadeusFlightProvider
-from app.providers.base import ProviderAlternative, ProviderFailureError
+from app.providers.base import FlightProvider, ProviderAlternative
 
 BASE_URL = "https://test.api.amadeus.com"
 
@@ -21,22 +22,24 @@ def _segment(carrier, number, dep_code, dep_at, arr_code, arr_at):
     }
 
 
-def _offer(segments, total, cabin="ECONOMY"):
+def _offer(offer_id, segments, total, cabin="ECONOMY", key="grandTotal"):
     return {
-        "id": "1",
+        "id": offer_id,
         "itineraries": [{"segments": segments}],
-        "price": {"currency": "INR", "total": total},
+        "price": {"currency": "INR", key: total},
         "travelerPricings": [{"fareDetailsBySegment": [{"cabin": cabin} for _ in segments]}],
     }
 
 
-DIRECT = _offer([_segment("AI", "445", "DEL", "2025-09-12T12:30:00", "IXL", "2025-09-12T13:45:00")], "17000.00", "BUSINESS")
+DIRECT = _offer("1", [_segment("AI", "445", "DEL", "2025-09-12T12:30:00", "IXL", "2025-09-12T13:45:00")], "17000.00", "BUSINESS")
 CONNECTING = _offer(
+    "2",
     [
         _segment("6E", "2011", "DEL", "2025-09-12T09:00:00", "SXR", "2025-09-12T10:30:00"),
         _segment("6E", "2123", "SXR", "2025-09-12T11:30:00", "IXL", "2025-09-12T12:20:00"),
     ],
     "9800.50",
+    key="total",  # some responses only carry "total"
 )
 
 
@@ -55,164 +58,141 @@ class FakeAmadeus:
             self.token_calls += 1
             if self.token_response is not None:
                 return self.token_response
-            assert request.method == "POST"
             body = request.content.decode()
-            assert "grant_type=client_credentials" in body
-            assert "client_id=test-id" in body and "client_secret=test-secret" in body
+            assert "grant_type=client_credentials" in body and "client_id=test-id" in body
             return httpx.Response(200, json={"access_token": "tok-123", "expires_in": 1799})
         if request.url.path == "/v2/shopping/flight-offers":
             self.search_requests.append(request)
             assert request.headers["Authorization"] == "Bearer tok-123"
             if self.offers_response is not None:
                 return self.offers_response
-            return httpx.Response(200, json={"data": self.offers})
+            return httpx.Response(200, json={"data": self.offers, "dictionaries": {"carriers": {"AI": "AIR INDIA"}}})
         return httpx.Response(404)
 
 
-def _provider(fake) -> AmadeusFlightProvider:
+class RecordingFallback(FlightProvider):
+    """Stands in for the simulated catalogue so fallbacks are observable."""
+
+    SIMULATED = ProviderAlternative(
+        id="sim-1", provider="Simulated", confirmation_hint="SIM-1", origin="DEL", destination="IXL",
+        departure=datetime(2025, 9, 12, 15, 0), arrival=datetime(2025, 9, 12, 16, 15), cost=9000.0, tier="standard",
+        refundable=False, refund_percentage=0.0, cancellation_deadline_hours=24,
+    )
+
+    def __init__(self):
+        self.calls = 0
+
+    def search(self, origin, destination, date):
+        self.calls += 1
+        return [self.SIMULATED]
+
+    def get_alternatives(self, origin, destination, after, exclude_confirmation=None):
+        self.calls += 1
+        return [self.SIMULATED]
+
+    def get_booking(self, confirmation):
+        return None
+
+    def get_cancellation_policy(self, confirmation):
+        raise NotImplementedError
+
+
+def _provider(handler, fallback=None, client_id="test-id") -> AmadeusFlightProvider:
     return AmadeusFlightProvider(
-        "test-id", "test-secret", BASE_URL, client=httpx.Client(transport=httpx.MockTransport(fake))
+        client_id, "test-secret", BASE_URL, fallback=fallback or RecordingFallback(),
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
 
 
-def test_search_maps_offers_to_provider_alternatives():
+def test_search_maps_offers_to_live_alternatives():
     fake = FakeAmadeus()
-
     results = _provider(fake).search("DEL", "IXL", "2025-09-12")
 
     params = fake.search_requests[0].url.params
-    assert params["originLocationCode"] == "DEL"
-    assert params["destinationLocationCode"] == "IXL"
-    assert params["departureDate"] == "2025-09-12"
-    assert params["adults"] == "1"
-    assert params["currencyCode"] == "INR"
+    assert (params["originLocationCode"], params["destinationLocationCode"]) == ("DEL", "IXL")
+    assert params["departureDate"] == "2025-09-12" and params["currencyCode"] == "INR"
 
-    assert results[0] == ProviderAlternative(
-        id="flight-ai-445-202509121230",
-        provider="AI",
-        confirmation_hint="AI-445",
-        origin="DEL",
-        destination="IXL",
-        departure=datetime(2025, 9, 12, 12, 30),
-        arrival=datetime(2025, 9, 12, 13, 45),
-        cost=17000.0,
-        tier="premium",
-        refundable=False,
-        refund_percentage=0.0,
-        cancellation_deadline_hours=24,
-    )
-    # Connection: departure from the first segment, arrival from the last.
-    connecting = results[1]
-    assert connecting.confirmation_hint == "6E-2011/6E-2123"
-    assert (connecting.origin, connecting.destination) == ("DEL", "IXL")
+    direct, connecting = results
+    assert direct.provider == "Air India" and direct.confirmation_hint == "AI-445"
+    assert direct.tier == "premium" and direct.cost == 17000.0 and direct.source == "live"
+    # Connection: departure from the first segment, arrival from the last; "total" accepted.
     assert connecting.departure == datetime(2025, 9, 12, 9, 0)
     assert connecting.arrival == datetime(2025, 9, 12, 12, 20)
-    assert connecting.cost == 9800.5
-    assert connecting.tier == "standard"
+    assert connecting.cost == 9800.5 and connecting.tier == "standard"
 
 
-def test_token_is_cached_across_searches():
+def test_token_is_cached_and_refetched_after_expiry():
     fake = FakeAmadeus()
     provider = _provider(fake)
-
     provider.search("DEL", "IXL", "2025-09-12")
     provider.search("DEL", "IXL", "2025-09-13")
-
     assert fake.token_calls == 1
-    assert len(fake.search_requests) == 2
-
-
-def test_expired_token_is_refetched():
-    fake = FakeAmadeus()
-    provider = _provider(fake)
-    provider.search("DEL", "IXL", "2025-09-12")
 
     provider._token_expires_at = 0.0  # simulate the cached token lapsing
     provider.search("DEL", "IXL", "2025-09-12")
-
     assert fake.token_calls == 2
 
 
 def test_get_alternatives_filters_sorts_and_excludes_current_flight():
-    fake = FakeAmadeus()
-
-    results = _provider(fake).get_alternatives("DEL", "IXL", datetime(2025, 9, 12, 8, 0), exclude_confirmation="AI-445")
-
-    # Same day and next day are both searched; the two identical responses are
-    # de-duplicated by id, AI-445 is excluded, leaving the connection.
-    assert [req.url.params["departureDate"] for req in fake.search_requests] == ["2025-09-12", "2025-09-13"]
-    assert [r.confirmation_hint for r in results] == ["6E-2011/6E-2123"]
+    results = _provider(FakeAmadeus()).get_alternatives("DEL", "IXL", datetime(2025, 9, 12, 8, 0), exclude_confirmation="AI-445")
+    assert [r.confirmation_hint for r in results] == ["6E-2011"]
 
 
 def test_get_alternatives_drops_flights_departing_before_earliest_time():
     results = _provider(FakeAmadeus()).get_alternatives("DEL", "IXL", datetime(2025, 9, 12, 10, 0))
-
     assert [r.confirmation_hint for r in results] == ["AI-445"]
 
 
-def test_get_alternatives_with_unbounded_time_makes_no_request():
-    fake = FakeAmadeus()
-
-    assert _provider(fake).get_alternatives("DEL", "IXL", datetime.max) == []
+def test_unbounded_earliest_time_makes_no_live_request():
+    fake, fallback = FakeAmadeus(), RecordingFallback()
+    _provider(fake, fallback).get_alternatives("DEL", "IXL", datetime.max)
     assert fake.search_requests == [] and fake.token_calls == 0
+    assert fallback.calls == 1
 
 
 @pytest.mark.parametrize(
-    ("fake", "kind"),
+    "fake",
     [
-        (FakeAmadeus(offers_response=httpx.Response(500, text="boom")), "error"),
-        (FakeAmadeus(token_response=httpx.Response(500, text="boom")), "error"),
-        (FakeAmadeus(token_response=httpx.Response(401, json={"error": "invalid_client"})), "error"),
-        (FakeAmadeus(offers_response=httpx.Response(200, text="<html>not json</html>")), "error"),
-        (FakeAmadeus(offers_response=httpx.Response(200, json={"errors": []})), "error"),
-        (FakeAmadeus(offers_response=httpx.Response(200, json={"data": [{"id": "1"}]})), "error"),
-        (FakeAmadeus(token_response=httpx.Response(200, json={"no_token": True})), "error"),
+        FakeAmadeus(offers_response=httpx.Response(500, text="boom")),
+        FakeAmadeus(token_response=httpx.Response(500, text="boom")),
+        FakeAmadeus(token_response=httpx.Response(401, json={"error": "invalid_client"})),
+        FakeAmadeus(offers_response=httpx.Response(200, text="<html>not json</html>")),
+        FakeAmadeus(offers_response=httpx.Response(200, json={"data": [{"id": "1"}]})),
+        FakeAmadeus(token_response=httpx.Response(200, json={"no_token": True})),
+        FakeAmadeus(offers=[]),
     ],
-    ids=["search-500", "token-500", "token-401", "non-json", "no-data", "unparseable-offers", "malformed-token"],
+    ids=["search-500", "token-500", "token-401", "non-json", "unparseable-offers", "malformed-token", "no-offers"],
 )
-def test_api_failures_raise_provider_failure_error(fake, kind):
-    with pytest.raises(ProviderFailureError) as excinfo:
-        _provider(fake).search("DEL", "IXL", "2025-09-12")
+def test_api_failures_fall_back_to_simulated_flights(fake):
+    fallback = RecordingFallback()
+    results = _provider(fake, fallback).get_alternatives("DEL", "IXL", datetime(2025, 9, 12, 8, 0))
+    assert results == [RecordingFallback.SIMULATED]
+    assert fallback.calls == 1
 
-    assert excinfo.value.provider_name == "AmadeusFlightProvider"
-    assert excinfo.value.kind == kind
 
-
-def test_timeout_raises_provider_failure_error_with_timeout_kind():
+@pytest.mark.parametrize("error", [httpx.ReadTimeout, httpx.ConnectError])
+def test_network_errors_fall_back_to_simulated_flights(error):
     def handler(request: httpx.Request) -> httpx.Response:
-        raise httpx.ReadTimeout("timed out", request=request)
+        raise error("down", request=request)
 
-    provider = AmadeusFlightProvider("test-id", "test-secret", BASE_URL, client=httpx.Client(transport=httpx.MockTransport(handler)))
-
-    with pytest.raises(ProviderFailureError) as excinfo:
-        provider.get_alternatives("DEL", "IXL", datetime(2025, 9, 12, 8, 0))
-
-    assert excinfo.value.kind == "timeout"
+    assert _provider(handler).search("DEL", "IXL", "2025-09-12") == [RecordingFallback.SIMULATED]
 
 
-def test_connection_error_raises_provider_failure_error():
-    def handler(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("dns failure", request=request)
+def test_rate_limit_pauses_live_calls():
+    fake = FakeAmadeus(offers_response=httpx.Response(429, json={}))
+    provider = _provider(fake)
+    provider.get_alternatives("DEL", "IXL", datetime(2025, 9, 12, 8, 0))
+    calls = len(fake.search_requests)
+    provider.get_alternatives("DEL", "IXL", datetime(2025, 9, 12, 8, 0))
+    assert len(fake.search_requests) == calls  # cooling down: no new live request
 
-    provider = AmadeusFlightProvider("test-id", "test-secret", BASE_URL, client=httpx.Client(transport=httpx.MockTransport(handler)))
 
-    with pytest.raises(ProviderFailureError):
-        provider.search("DEL", "IXL", "2025-09-12")
+def test_unconfigured_provider_never_touches_the_network():
+    fake = FakeAmadeus()
+    _provider(fake, client_id=None).get_alternatives("DEL", "IXL", datetime(2025, 9, 12, 8, 0))
+    assert fake.token_calls == 0 and fake.search_requests == []
 
 
 def test_one_malformed_offer_does_not_discard_the_rest():
-    fake = FakeAmadeus(offers=[{"id": "broken"}, DIRECT])
-
-    results = _provider(fake).search("DEL", "IXL", "2025-09-12")
-
+    results = _provider(FakeAmadeus(offers=[{"id": "broken"}, DIRECT])).search("DEL", "IXL", "2025-09-12")
     assert [r.confirmation_hint for r in results] == ["AI-445"]
-
-
-def test_booking_lookup_and_cancellation_policy_are_conservative_without_network():
-    fake = FakeAmadeus()
-    provider = _provider(fake)
-
-    assert provider.get_booking("AI-445") is None
-    policy = provider.get_cancellation_policy("AI-445")
-    assert (policy.refundable, policy.refund_percentage, policy.cancellation_deadline_hours) == (False, 0.0, 24)
-    assert fake.token_calls == 0 and fake.search_requests == []

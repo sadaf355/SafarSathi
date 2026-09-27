@@ -37,7 +37,7 @@ class NodeWeatherOut(CamelModel):
     vulnerability_index: int
     # WVI x forecast risk: how much the forecast actually threatens this booking (0-100).
     exposure: int
-    source: str  # "open-meteo" | "fallback" | "unavailable"
+    source: str  # "open-meteo" | "open-meteo-current" (booking outside the 7-day window) | "fallback" | "unavailable"
 
 
 class TripWeatherOut(CamelModel):

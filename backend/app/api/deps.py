@@ -18,27 +18,39 @@ behavior Phase 1's token-expiry requirement exists to prevent.
 
 from __future__ import annotations
 
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database.seed import DEFAULT_TRAVELER_ID
+from app.database.session import get_db
+from app.models.traveler import Traveler
 from app.services.auth_service import verify_token
 
 
-def _anonymous_traveler_id() -> str:
+def _unauthenticated() -> HTTPException:
+    return HTTPException(status_code=401, detail="Authentication required", headers={"WWW-Authenticate": "Bearer"})
+
+
+def _anonymous_traveler_id(db: Session) -> str:
     """Identity for a request that carries no bearer token. With
     REQUIRE_AUTHENTICATION=true (what real deployments should use) there is
-    no anonymous access at all; otherwise local dev keeps the demo fallback."""
+    no anonymous access at all; otherwise local dev keeps the demo fallback -
+    but only when the demo traveler actually exists. Without that check an
+    anonymous request on an unseeded database would create trips owned by a
+    traveler row that doesn't exist (an FK violation on Postgres)."""
     if get_settings().require_authentication:
-        raise HTTPException(status_code=401, detail="Authentication required", headers={"WWW-Authenticate": "Bearer"})
+        raise _unauthenticated()
+    if db.get(Traveler, DEFAULT_TRAVELER_ID) is None:
+        raise _unauthenticated()
     return DEFAULT_TRAVELER_ID
 
 
-def get_current_traveler_id(authorization: str | None = Header(default=None)) -> str:
+def get_current_traveler_id(authorization: str | None = Header(default=None), db: Session = Depends(get_db)) -> str:
     if authorization is None:
-        return _anonymous_traveler_id()
+        return _anonymous_traveler_id(db)
     if not authorization.lower().startswith("bearer "):
-        return _anonymous_traveler_id()
+        return _anonymous_traveler_id(db)
     token = authorization[len("bearer "):].strip()
     traveler_id = verify_token(token)
     if traveler_id is None:

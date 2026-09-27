@@ -19,7 +19,7 @@ from app.database.seed import DEFAULT_TRAVELER_ID
 from app.database.session import get_db
 from app.models.traveler import Traveler
 from app.schemas.base import CamelModel
-from app.services.auth_service import create_token, hash_password, verify_password
+from app.services.auth_service import create_token, hash_password, password_problems, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -76,6 +76,9 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
     # `request` must be the literal parameter name here (and stay typed as
     # Request) - slowapi's limiter decorator looks it up from kwargs by that
     # exact name at call time to find the client's IP.
+    problems = password_problems(payload.password)
+    if problems:
+        raise HTTPException(status_code=422, detail="Choose a stronger password - it needs " + ", ".join(problems) + ".")
     existing = db.query(Traveler).filter(Traveler.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=409, detail="An account with this email already exists.")
