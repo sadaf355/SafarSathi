@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
+from app.core.datetime_utils import utcnow_naive
 
 from sqlalchemy.orm import Session
 
@@ -77,7 +78,7 @@ def predict_trip(db: Session, trip: Trip) -> list[Notification]:
                 high = high or analysis.score.weather_risk >= 50
 
     notifications: list[Notification] = []
-    now = datetime.utcnow()
+    now = utcnow_naive()
     if reasons:
         summary = "; ".join(reasons)
         notification = Notification(

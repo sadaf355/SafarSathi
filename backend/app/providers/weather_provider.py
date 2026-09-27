@@ -12,6 +12,7 @@ import math
 import threading
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from app.core.datetime_utils import utcnow_naive
 from typing import Any
 
 import httpx
@@ -114,7 +115,7 @@ class OpenMeteoWeatherProvider:
     def get_snapshot(self, lat: float, lng: float, moment: datetime) -> WeatherSnapshot:
         key = self._cache_key(lat, lng, moment)
         cached = self._cache.get(key)
-        if cached and cached[1] > datetime.utcnow():
+        if cached and cached[1] > utcnow_naive():
             return cached[0]
 
         day = moment.date()
@@ -163,9 +164,9 @@ class OpenMeteoWeatherProvider:
             wind_speed=value("wind_speed_10m"),
             weather_code=int(round(value("weather_code"))),
             label=self._label(int(round(value("weather_code")))),
-            fetched_at=datetime.utcnow(),
+            fetched_at=utcnow_naive(),
         )
-        self._cache[key] = (snapshot, datetime.utcnow() + timedelta(minutes=10))
+        self._cache[key] = (snapshot, utcnow_naive() + timedelta(minutes=10))
         return snapshot
 
 
@@ -209,7 +210,7 @@ class WeatherForecast:
     source: str  # "open-meteo" | "fallback"
     current: HourlyWeather
     hourly: list[HourlyWeather] = field(default_factory=list)
-    fetched_at: datetime = field(default_factory=datetime.utcnow)
+    fetched_at: datetime = field(default_factory=utcnow_naive)
 
     def at(self, moment: datetime) -> HourlyWeather:
         """Nearest forecast hour; outside the forecast range, a deterministic
@@ -330,7 +331,7 @@ class WeatherForecastProvider:
         key = f"{lat:.2f},{lng:.2f}"
         with self._lock:
             cached = self._cache.get(key)
-            if cached and cached[1] > datetime.utcnow():
+            if cached and cached[1] > utcnow_naive():
                 return cached[0]
         try:
             forecast = self._parse(self._fetch(lat, lng), lat, lng)
@@ -339,5 +340,5 @@ class WeatherForecastProvider:
         with self._lock:
             # Fallbacks are cached briefly so a flapping network retries soon.
             ttl = self.CACHE_MINUTES if forecast.source == "open-meteo" else 2
-            self._cache[key] = (forecast, datetime.utcnow() + timedelta(minutes=ttl))
+            self._cache[key] = (forecast, utcnow_naive() + timedelta(minutes=ttl))
         return forecast

@@ -240,8 +240,8 @@ The codebase is thoroughly verified with comprehensive test suites:
 
 | Suite | Status | Details |
 | :--- | :--- | :--- |
-| **Backend Unit & Engine Tests** | **327 tests, 323 passed, 4 skipped, 0 failed** | `pytest app/tests/ -q`, verified against a full run (the 4 skips need a reachable Postgres) |
-| **Frontend Unit & Component Tests** | **135 tests, 135 passed, 0 failed** | `npx vitest run`, verified against a full run |
+| **Backend Unit & Engine Tests** | **406 tests, 402 passed, 4 skipped, 0 failed** | `pytest app/tests/ -q`, verified against a full run on 27 Sep 2026 (the 4 skips need a reachable Postgres) |
+| **Frontend Unit & Component Tests** | **161 tests, 161 passed, 0 failed** | `npx vitest run` (32 test files), verified against a full run on 27 Sep 2026 |
 | **Frontend type check / lint / build** | **Passing** | `npm run typecheck`, `npm run lint`, `npm run build` all clean |
 | **Browser E2E Flow** | **Not shipped** | No Playwright/Cypress suite is present in this archive |
 | **Python syntax** | **Verified** | Backend source compiles with `py_compile` |
@@ -276,14 +276,17 @@ cd frontend && npm run typecheck && npm run lint && npm test && npm run build
 ![TripRescue Risk Intelligence](frontend/src/assets/screenshots/06-risk-ai.png)
 
 ## 26. Live Demo
-- **Frontend Web App**: [https://daanialmirza5.github.io/triprescue/](https://daanialmirza5.github.io/triprescue/)
-- **Backend API**: [https://triprescue-kw9d.onrender.com](https://triprescue-kw9d.onrender.com)
-- **API Health Endpoint**: [https://triprescue-kw9d.onrender.com/api/health](https://triprescue-kw9d.onrender.com/api/health)
+- **Frontend Web App**: _TODO — add your Vercel URL here once deployed (see §27)._
+- **Backend API**: _TODO — add your Render URL here once deployed._
+- **API Health Endpoint**: _TODO — `<your-render-url>/api/health`._
 
 ## 27. Deployment
-- **Frontend**: Hosted on GitHub Pages as a static SPA bundle.
-- **Backend**: Hosted on Render with FastAPI and SQLite.
-- **Environment**: Configured via `.env.example` templates with automatic mock fallback.
+- **Frontend**: Vercel (static Vite/React SPA build).
+- **Backend**: Render (FastAPI, Docker).
+- **Database**: Neon (managed serverless Postgres).
+- **Environment**: Configured via `.env.example` templates with automatic mock fallback for every optional integration.
+
+See `DEPLOYMENT.md` in the repo root for the full step-by-step Neon + Render + Vercel deployment guide, including every environment variable and API key required.
 
 ## 28. Current Limitations
 - **Disruption Ingestion**: Disruption events are currently triggered manually or simulated via Demo Mode (deterministic scenarios). Direct live flight radar / GDS webhook feeds are planned for future phases.
@@ -393,9 +396,9 @@ Frontend will be available at `http://localhost:5173`. Click **"Continue as Demo
 - **Map tiles**: the world map uses Leaflet with Esri World Imagery tiles (attribution shown on the map).
 
 ## 32. Team / Author
-- **Author**: daanialmirza5
-- **Contact**: daanialmirza@gmail.com
-- **Project**: TripRescue — HackCelestial Final Release
+- **Author**: Sadaf Shaikh _(add teammate names here)_
+- **Contact**: your-team-email@example.com _(⚠️ TODO: replace with your real contact email)_
+- **Project**: SafarSathi — HackCelestial 3.0
 
 ## Live Travel Data
 

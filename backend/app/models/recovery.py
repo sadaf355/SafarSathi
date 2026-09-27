@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.core.datetime_utils import utcnow_naive
 
 from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -36,7 +37,7 @@ class RecoveryPlan(Base):
     data_source: Mapped[str] = mapped_column(String, default="simulated")
     applied: Mapped[bool] = mapped_column(Boolean, default=False)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     trip: Mapped["Trip"] = relationship(back_populates="recovery_plans")
     disruption: Mapped["Disruption"] = relationship(back_populates="recovery_plans")

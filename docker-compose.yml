@@ -1,7 +1,7 @@
 name: triprescue
 
-# Local-development PostgreSQL only. Production uses Supabase Postgres (see
-# README.md) - this file has no production purpose and nothing here
+# Local-development PostgreSQL only. Production uses managed Postgres (Neon) -
+# see DEPLOYMENT.md - this file has no production purpose and nothing here
 # is deployed anywhere.
 services:
   postgres:
