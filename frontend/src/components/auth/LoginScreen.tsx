@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowLeft, Check, Circle, Loader2, Sparkles, WifiOff } from 'lucide-react';
-import { DEMO_UNAVAILABLE_MESSAGE, useAuth } from '@/store/AuthContext';
+import { ArrowLeft, Check, Circle, Loader2, Sparkles } from 'lucide-react';
+import { useAuth } from '@/store/AuthContext';
 import { useToast } from '@/components/ui/ToastProvider';
 import { ApiError } from '@/services/api';
 import { Logo, ScriptTagline } from '@/components/brand/Logo';
@@ -12,19 +12,18 @@ type Mode = 'login' | 'register';
 
 /** Sign-in: backend account, the seeded demo traveler, or a fully offline demo. */
 export function LoginScreen({ onBack }: { onBack?: () => void }) {
-  const { loginWithPassword, registerAccount, continueAsDemo, continueOffline, busy, error, offline, wakingServer } = useAuth();
+  const { loginWithPassword, registerAccount, continueAsDemo, busy, error, wakingServer } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { addToast } = useToast();
-  const demoUnavailable = error === DEMO_UNAVAILABLE_MESSAGE;
   const registering = mode === 'register';
   const weakPassword = registering && !isStrongPassword(password);
 
   const handleDemo = () => {
     continueAsDemo().catch((err) => {
-      if (err instanceof ApiError && err.status === 404) addToast('info', 'Production mode active', 'Please create a new account or use Explore Offline Demo.');
+      if (err instanceof ApiError && err.status === 404) addToast('info', 'Production mode active', 'Please create a new account.');
     });
   };
 
@@ -94,7 +93,7 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
             {error && (
               <div role="alert" className="rounded-xl border border-danger/20 bg-danger-light/60 p-3 text-xs text-danger">
                 {error}
-                {offline && <div className="mt-1 text-ink-soft">The backend isn't reachable. You can still explore Safar Sathi with offline demo data.</div>}
+
               </div>
             )}
 
@@ -110,10 +109,7 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
             <button type="button" disabled={busy} onClick={handleDemo} className="btn-outline w-full py-3">
               <Sparkles className="h-4 w-4" /> Continue as Demo Traveler
             </button>
-            <button type="button" disabled={busy} onClick={() => continueOffline()} className={cn('btn w-full py-3', offline || demoUnavailable ? 'bg-ai text-white hover:brightness-110' : 'border border-line bg-white text-ink-soft hover:bg-canvas')}>
-              <WifiOff className="h-4 w-4" /> Explore offline demo
-            </button>
-            <p className="pt-1 text-center text-[11px] leading-relaxed text-ink-muted">The offline demo runs entirely in your browser with sample trips — no account or backend needed.</p>
+
           </div>
         </div>
       </div>

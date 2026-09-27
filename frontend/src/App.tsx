@@ -21,7 +21,7 @@ import { TripDetailsPage } from '@/pages/TripDetailsPage';
 import { DigitalTwinPage } from '@/pages/DigitalTwinPage';
 import { ExplorePage } from '@/pages/ExplorePage';
 import { LiveTransportPage } from '@/pages/LiveTransportPage';
-import { BriefcaseBusiness, WifiOff } from 'lucide-react';
+import { BriefcaseBusiness } from 'lucide-react';
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 /** Set by the landing page's "Watch Demo": play the guided demo once the app loads. */
@@ -133,7 +133,7 @@ function AppContent() {
 }
 
 function Gate() {
-  const { status, dataMode, continueOffline } = useAuth();
+  const { status, dataMode, continueAsDemo } = useAuth();
   const [view, setView] = useState<'landing' | 'login'>(() => (window.location.hash === '#/login' ? 'login' : 'landing'));
   const watchDemo = useCallback(async () => {
     try {
@@ -142,8 +142,8 @@ function Gate() {
       /* storage unavailable - the demo still opens, just without autoplay */
     }
     window.location.hash = '/dashboard';
-    await continueOffline();
-  }, [continueOffline]);
+    await continueAsDemo();
+  }, [continueAsDemo]);
   if (status === 'checking') {
     return <div className="flex h-screen items-center justify-center bg-canvas"><LogoMark className="h-14 w-24 animate-pulse-soft" /></div>;
   }
