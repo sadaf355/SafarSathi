@@ -101,6 +101,16 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "Internal server error. Please try again."})
 
 
+@app.get("/", tags=["root"])
+async def root():
+    return {
+        "service": "SafarSathi API",
+        "status": "ok",
+        "docs": "/docs",
+        "health": "/api/health",
+    }
+
+
 app.include_router(health.router)
 app.include_router(trips.router)
 app.include_router(trips.geocode_router)
@@ -110,4 +120,5 @@ app.include_router(assistant.router)
 app.include_router(auth.router)
 app.include_router(weather.router)
 app.include_router(digital_twin.router)
+app.include_router(digital_twin.general_router)
 app.include_router(social_signals.router)

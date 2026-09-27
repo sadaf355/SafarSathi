@@ -20,6 +20,17 @@ def weather_at(
     return weather_service.forecast_out(lat, lng, hours)
 
 
+@router.get("/weather/current", response_model=WeatherForecastOut)
+def weather_current(
+    lat: float = Query(28.6139, ge=-90, le=90),
+    lng: float = Query(77.2090, ge=-180, le=180),
+    hours: int = Query(24, ge=1, le=168),
+    traveler_id: str = Depends(get_current_traveler_id),
+):
+    """Current weather probe endpoint with default coordinates."""
+    return weather_service.forecast_out(lat, lng, hours)
+
+
 @router.get("/trips/{trip_id}/weather", response_model=TripWeatherOut)
 def trip_weather(trip_id: str, db: Session = Depends(get_db), traveler_id: str = Depends(get_current_traveler_id)):
     """Forecast at every booking's scheduled time, with its Weather Vulnerability Index."""

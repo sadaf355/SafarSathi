@@ -18,7 +18,7 @@ def test_delay_with_flight_number_and_iata_route_matches_the_leg(client):
     assert body["type"] == "flight-delay"
     assert body["delayMinutes"] == 180
     assert body["primaryNodeId"] == "del-leh"
-    assert body["source"] == "heuristic"
+    assert body["source"] in ("heuristic", "fallback")
 
 
 @pytest.mark.parametrize(

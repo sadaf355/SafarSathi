@@ -42,9 +42,14 @@ def _level(value: str) -> RiskLevel:
     return RiskLevel(value) if value in RiskLevel._value2member_map_ else RiskLevel.LOW
 
 
-def predict_trip(db: Session, trip: Trip) -> Notification | None:
+def predict_trip(db: Session, trip: Trip) -> list[Notification]:
     """Re-score one trip against its latest snapshots, record the new
-    snapshots and return the notification raised (if risk worsened)."""
+    snapshots and return the notifications raised (if risk worsened)."""
+    from app.models.enums import TripStatus
+
+    if trip.status in (TripStatus.DISRUPTED, TripStatus.RECOVERED):
+        return []
+
     snapshot_repo = RiskSnapshotRepository(db)
     analysis = get_risk_analysis(db, trip.id)
     last = snapshot_repo.latest_for_trip(trip.id)
@@ -71,7 +76,7 @@ def predict_trip(db: Session, trip: Trip) -> Notification | None:
                 reasons.append(f"Overall weather risk increased by {diff}% (now {analysis.score.weather_risk}%)")
                 high = high or analysis.score.weather_risk >= 50
 
-    notification: Notification | None = None
+    notifications: list[Notification] = []
     now = datetime.utcnow()
     if reasons:
         summary = "; ".join(reasons)
@@ -87,6 +92,7 @@ def predict_trip(db: Session, trip: Trip) -> Notification | None:
         ActivityRepository(db).add(
             ActivityEvent(trip_id=trip.id, type=ActivityType.MONITORING, message="Elevated risk detected", detail=summary, timestamp=now)
         )
+        notifications.append(notification)
 
     snapshots = [
         RiskSnapshot(
@@ -118,7 +124,7 @@ def predict_trip(db: Session, trip: Trip) -> Notification | None:
     )
     snapshot_repo.save_batch(snapshots)
     db.commit()
-    return notification
+    return notifications
 
 
 def run_risk_prediction_cycle(db: Session, trip_id: str | None = None) -> list[Notification]:
@@ -133,9 +139,11 @@ def run_risk_prediction_cycle(db: Session, trip_id: str | None = None) -> list[N
     failed = 0
     for trip in trips:
         try:
-            notification = predict_trip(db, trip)
-            if notification is not None:
-                raised.append(notification)
+            res = predict_trip(db, trip)
+            if isinstance(res, list):
+                raised.extend(res)
+            elif res is not None:
+                raised.append(res)
         except Exception:
             db.rollback()
             failed += 1

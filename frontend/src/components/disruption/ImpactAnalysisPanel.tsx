@@ -9,12 +9,18 @@ import { AlertTriangle, ShieldAlert, DollarSign, ArrowRight, GitBranch, CheckCir
 interface Props { fullPage?: boolean; onNavigate?: (page: string) => void; }
 export function ImpactAnalysisPanel({ fullPage = false, onNavigate }: Props) {
   const { activeDisruption, trip } = useApp();
-  const [revealed, setRevealed] = useState(0); const [showGraph, setShowGraph] = useState(false);
+  const [revealed, setRevealed] = useState(0);
+  const [showGraph, setShowGraph] = useState(false);
   const steps = activeDisruption?.cascadeSteps ?? [];
   const stepCount = steps.length;
   const disruptionId = activeDisruption?.id;
   // Staged reveal: restarts for a new disruption; only the step count matters.
-  useEffect(() => { setRevealed(stepCount ? 1 : 0); if (stepCount < 2) return; const timers=Array.from({length: stepCount - 1}, (_,i)=>window.setTimeout(()=>setRevealed(i+2),650*(i+1))); return()=>timers.forEach(clearTimeout); }, [disruptionId, stepCount]);
+  useEffect(() => {
+    setRevealed(stepCount ? 1 : 0);
+    if (stepCount < 2) return;
+    const timers = Array.from({ length: stepCount - 1 }, (_, i) => window.setTimeout(() => setRevealed(i + 2), 650 * (i + 1)));
+    return () => timers.forEach(clearTimeout);
+  }, [disruptionId, stepCount]);
   const primaryNode = trip.nodes.find(n=>n.id===activeDisruption?.primaryNodeId);
   // The backend's narrative explains the actual cascade; the template is the offline-demo fallback.
   const narrative = useMemo(()=>activeDisruption ? activeDisruption.narrative || `Your ${activeDisruption.label.toLowerCase()} affects ${activeDisruption.downstreamImpact} downstream booking${activeDisruption.downstreamImpact===1?'':'s'}. SafarSathi is tracing dependency buffers to separate broken commitments from bookings that remain safe.` : '', [activeDisruption]);

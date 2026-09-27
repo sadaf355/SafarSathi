@@ -139,7 +139,8 @@ def poll_risk_once(
 ):
     try:
         trip = trip_service.get_trip(db, trip_id, traveler_id)
-        notifications = risk_prediction_service.predict_trip(db, trip)
+        result = risk_prediction_service.predict_trip(db, trip)
+        notifications = result if isinstance(result, list) else ([result] if result is not None else [])
         return [
             NotificationOut(
                 id=n.id,

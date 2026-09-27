@@ -55,3 +55,19 @@ def apply(
         raise HTTPException(status_code=409, detail="The itinerary changed since this simulation. Run the scenario again.")
     except digital_twin_service.ActiveDisruptionError:
         raise HTTPException(status_code=409, detail="Resolve the active disruption before applying a preemptive weather plan.")
+
+
+general_router = APIRouter(prefix="/api/twin", tags=["digital-twin"])
+
+
+@general_router.get("/state")
+def twin_state(traveler_id: str = Depends(get_current_traveler_id)):
+    """Return digital twin engine status and operational readiness."""
+    settings = get_settings()
+    return {
+        "status": "ready",
+        "engine": "weather_digital_twin",
+        "nugen_enabled": bool(settings.nugen_api_key),
+        "nugen_model": settings.nugen_model_id,
+        "active_simulations_cached": len(digital_twin_service._simulations),
+    }
