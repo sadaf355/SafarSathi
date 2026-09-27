@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
-from app.api.routes import assistant, auth, digital_twin, disruptions, health, recovery, social_signals, trips, weather
+from app.api.routes import assistant, auth, digital_twin, disruptions, health, live, recovery, social_signals, trips, weather
 from app.config import get_settings
 from app.core.logging import configure_logging, init_sentry
 from app.core.middleware import RequestTimingMiddleware
@@ -122,3 +122,4 @@ app.include_router(weather.router)
 app.include_router(digital_twin.router)
 app.include_router(digital_twin.general_router)
 app.include_router(social_signals.router)
+app.include_router(live.router)

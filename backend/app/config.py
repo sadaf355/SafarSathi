@@ -85,6 +85,21 @@ class Settings(BaseSettings):
     nugen_base_url: str = "https://api.nugen.in"
     nugen_timeout_seconds: float = 12.0
 
+    # --- Live travel data (server-side only; never exposed to the frontend). ---
+    # Missing keys disable that provider: its endpoints answer "not configured"
+    # instead of falling back to simulated data.
+    aviationstack_api_key: str | None = None
+    aviationstack_base_url: str = "https://api.aviationstack.com/v1"
+    railradar_api_key: str | None = None
+    railradar_base_url: str = "https://api.railradar.in"
+    ticketmaster_api_key: str | None = None
+    ticketmaster_base_url: str = "https://app.ticketmaster.com"
+    # Hotels/places source: "nominatim" (free, keyless, default) or "overpass".
+    places_provider: str = "nominatim"
+    nominatim_places_url: str = "https://nominatim.openstreetmap.org/search"
+    overpass_url: str = "https://overpass-api.de/api/interpreter"
+    live_provider_timeout_seconds: float = 8.0
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
