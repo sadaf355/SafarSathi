@@ -5,7 +5,7 @@ import { DestinationImage } from '@/components/travel/DestinationImage';
 import { sceneImages } from '@/lib/destinationImages';
 import { durationBetween, formatDay, formatINR, formatMinutes, formatTime } from '@/lib/journey';
 import { optionBadge, whyBullets, type OptionRoute } from '@/lib/recovery';
-import { toConciseBullets } from '@/lib/concise';
+import { toConciseLine } from '@/lib/concise';
 import { riskTone, toneClasses } from '@/lib/status';
 import type { RecoveryOption } from '@/types';
 import { BadgePercent, Car, CheckCircle2, ChevronDown, Crown, Hotel, Lightbulb, Plane, ShieldCheck, Sparkles, TrainFront, Zap } from 'lucide-react';
@@ -112,7 +112,7 @@ export function RecoveryPlanCard({ option, route, rank, selected, isFastest, isC
         </button>
         {whyOpen && (
           <ul className="space-y-1.5 px-4 pb-4">
-            {(option.narrative ? toConciseBullets(option.narrative, 2) : whyBullets(option)).slice(0, 3).map((b) => (
+            {(option.narrative ? [toConciseLine(option.narrative, 140)] : whyBullets(option).slice(0, 1)).map((b) => (
               <li key={b} className="flex items-start gap-2 text-xs text-ink-soft">
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-safe" />
                 <span>{b}</span>

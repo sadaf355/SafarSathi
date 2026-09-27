@@ -3,12 +3,14 @@ from sqlalchemy.orm import Session
 
 from app.models.enums import TripStatus
 from app.models.trip import Trip
+from app.core.pipeline_trace import traced
 
 
 class TripRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    @traced("database", "Read trip", detail=lambda r, a, k: {"operation": "read", "table": "trips", "rows": int(r is not None)})
     def get(self, trip_id: str) -> Trip | None:
         return self.db.get(Trip, trip_id)
 

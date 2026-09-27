@@ -24,6 +24,11 @@ from app.schemas.trip import TripOut
 from app.services import email_service, recovery_narrative
 from app.services.converters import to_engine_edge, to_engine_node
 from app.services.trip_service import get_trip, get_trip_out
+from app.core.pipeline_trace import current_fault, traced
+from app.providers.mock_activity_provider import MockActivityProvider
+from app.providers.mock_flight_provider import MockFlightProvider
+from app.providers.mock_hotel_provider import MockHotelProvider
+from app.providers.mock_transfer_provider import MockTransferProvider
 
 _propagation_engine = PropagationEngine()
 _itinerary_engine = ItineraryEngine()
@@ -35,6 +40,21 @@ _recovery_engine = RecoveryEngine(
     transfer_provider=_providers.transfer,
 )
 
+
+
+def _recovery_engine_for(trip_id: str) -> RecoveryEngine:
+    """The shared engine, except inside a Live Journey Pipeline demo run that
+    asked for a provider fault on the isolated demo trip: then the project's own
+    mock-provider failure mode is injected at the provider boundary."""
+    fault = current_fault(trip_id)
+    if not fault:
+        return _recovery_engine
+    return RecoveryEngine(
+        flight_provider=MockFlightProvider(failure_mode=fault),
+        hotel_provider=MockHotelProvider(failure_mode=fault),
+        activity_provider=MockActivityProvider(failure_mode=fault),
+        transfer_provider=MockTransferProvider(failure_mode=fault),
+    )
 
 class NoActiveDisruptionError(Exception):
     pass
@@ -153,6 +173,7 @@ def _plan_to_out(plan: RecoveryPlan, narrative: str | None = None) -> RecoveryOp
     )
 
 
+@traced("service", "Recovery service: generate recovery options")
 def generate_recovery_options(db: Session, trip_id: str, traveler_id: str | None = None) -> list[RecoveryOptionOut]:
     trip = get_trip(db, trip_id, traveler_id)
     disruption, nodes, edges, engine_nodes, engine_edges, impacts = _current_impacts(db, trip_id)
@@ -167,7 +188,7 @@ def generate_recovery_options(db: Session, trip_id: str, traveler_id: str | None
     db.flush()
 
     preferences = trip.traveler.preferences
-    all_candidates = _recovery_engine.generate_plans(
+    all_candidates = _recovery_engine_for(trip_id).generate_plans(
         nodes=engine_nodes,
         edges=engine_edges,
         impacts=impacts,
@@ -232,6 +253,7 @@ def list_recovery_options(db: Session, trip_id: str, traveler_id: str | None = N
     return [_plan_to_out(p, notes.get(p.id)) for p in plans]
 
 
+@traced("service", "Recovery service: apply chosen plan and re-validate")
 def apply_recovery(
     db: Session, trip_id: str, recovery_id: str, traveler_id: str | None = None
 ) -> tuple[TripOut, RecoveryOptionOut, ActivityEvent, Notification]:

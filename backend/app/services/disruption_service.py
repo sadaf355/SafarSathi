@@ -18,6 +18,7 @@ from app.schemas.disruption import CascadeStepOut, DisruptionOut, DisruptionRequ
 from app.services.converters import format_time, to_engine_edge, to_engine_node
 from app.services import email_service
 from app.services.trip_service import get_trip
+from app.core.pipeline_trace import traced
 
 _propagation_engine = PropagationEngine()
 _itinerary_engine = ItineraryEngine()
@@ -193,6 +194,7 @@ def disruption_narrative(nodes: list, primary_id: str, disruption_type: str, del
     return " ".join(sentences)
 
 
+@traced("service", lambda db, trip_id, request, *a, **k: f"Disruption service: {request.type}" + (f" +{request.delay_minutes} min" if request.delay_minutes else ""))
 def trigger_disruption(
     db: Session, trip_id: str, request: DisruptionRequest, traveler_id: str | None = None
 ) -> PropagationResultOut:

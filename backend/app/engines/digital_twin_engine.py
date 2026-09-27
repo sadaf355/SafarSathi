@@ -30,6 +30,7 @@ from app.engines.graph_engine import GraphEngine
 from app.engines.itinerary_engine import ItineraryEngine
 from app.engines.propagation_engine import PropagationEngine
 from app.engines.types import EngineEdge, EngineNode, NodeImpact
+from app.core.pipeline_trace import traced
 
 MOUNTAIN_RE = re.compile(r"\b(leh|ladakh|manali|shimla|darjeeling|munnar|pass|ghat|hill|mountain|nubra|pangong|spiti)\b", re.I)
 OUTDOOR_RE = re.compile(r"\b(tour|trek|hike|lake|safari|cruise|boat|dive|scuba|beach|valley|sunrise|sunset|fort|garden|excursion|rafting|camp)\b", re.I)
@@ -257,6 +258,7 @@ class DigitalTwinEngine:
         half = 0.04 + 0.16 * (1 - signal) * (1 - 0.5 * severity)
         return RiskEstimate(node.id, label, round(p, 2), round(max(0.01, p - half), 2), round(min(0.99, p + half * 0.6), 2))
 
+    @traced("intelligence", "Digital Twin: weather stress on a sandbox copy", detail=lambda r, a, k: {"directHits": len(r.hits), "twinHealth": r.health_score})
     def run(
         self,
         nodes: list[EngineNode],
@@ -300,6 +302,7 @@ class DigitalTwinEngine:
 
     # ---- Preemptive recovery ----------------------------------------------------------------
 
+    @traced("recovery", "Digital Twin: preemptive recovery options", detail=lambda r, a, k: {"options": len(r)})
     def preemptive_options(
         self,
         nodes: list[EngineNode],

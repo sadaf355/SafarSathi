@@ -41,6 +41,7 @@ from app.providers.base import (
     ProviderFailureError,
     TransferProvider,
 )
+from app.core.pipeline_trace import traced
 
 BOOKABLE_CATEGORIES = {"flight", "hotel", "activity", "transfer", "return"}
 MIN_REBOOK_BUFFER_MINUTES = 30
@@ -205,6 +206,7 @@ class RecoveryEngine:
             provider_reason=message,
         )
 
+    @traced("recovery", "Recovery engine: build candidate plans", detail=lambda r, a, k: {"plans": len(r), "feasible": sum(1 for p in r if p.feasible), "unavailable": [p.provider_reason for p in r if p.provider_reason][:1]})
     def generate_plans(
         self,
         nodes: list[EngineNode],

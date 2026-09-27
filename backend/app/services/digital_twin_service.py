@@ -43,6 +43,7 @@ from app.schemas.digital_twin import (
 from app.services import nugen_service, social_signals_service, weather_service
 from app.services.converters import to_engine_edge, to_engine_node
 from app.services.trip_service import get_trip, get_trip_out
+from app.core.pipeline_trace import traced
 
 TTL = timedelta(minutes=30)
 MAX_STORED = 200
@@ -124,6 +125,7 @@ def _option_out(o: TwinOption) -> TwinOptionOut:
     )
 
 
+@traced("service", "Digital Twin service: sandboxed weather what-if")
 def simulate(db: Session, trip_id: str, traveler_id: str | None, request: DigitalTwinSimulateRequest) -> DigitalTwinSimulationOut:
     trip = get_trip(db, trip_id, traveler_id)
     repo = NodeRepository(db)
@@ -178,6 +180,7 @@ def simulate(db: Session, trip_id: str, traveler_id: str | None, request: Digita
     )
 
 
+@traced("service", "Digital Twin service: apply preemptive plan")
 def apply(db: Session, trip_id: str, traveler_id: str | None, simulation_id: str, option_id: str) -> DigitalTwinApplyOut:
     trip = get_trip(db, trip_id, traveler_id)
     with _lock:

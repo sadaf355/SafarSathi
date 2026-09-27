@@ -1,3 +1,4 @@
+import { shortText } from '@/lib/concise';
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '@/store/AppContext';
 import { useRouter } from '@/lib/router';
@@ -159,8 +160,7 @@ export function LiveUpdatesPage() {
                   <button key={a.id} onClick={() => setOpenAlert(a)} className="flex w-full items-start gap-3 rounded-xl p-2.5 text-left transition hover:bg-canvas">
                     <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', style.tile)}><Icon className="h-5 w-5" /></span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold leading-snug text-ink">{a.title}</span>
-                      <span className="mt-0.5 line-clamp-1 block text-xs text-ink-muted">{a.reason}</span>
+                      <span className="block truncate text-sm font-semibold leading-snug text-ink" title={a.title}>{shortText(a.title, 70)}</span>
                     </span>
                     <span className="shrink-0 text-[11px] text-ink-faint">{a.timestamp}</span>
                   </button>

@@ -3,6 +3,7 @@ Vulnerability Index (WVI): how exposed each kind of booking is to weather."""
 
 from __future__ import annotations
 
+import contextvars
 import re
 from concurrent.futures import ThreadPoolExecutor
 
@@ -13,6 +14,7 @@ from app.providers.weather_provider import HourlyWeather, WeatherForecast, Weath
 from app.repositories.node_repository import NodeRepository
 from app.schemas.weather import HourlyWeatherOut, NodeWeatherOut, TripWeatherOut, WeatherForecastOut
 from app.services.trip_service import get_trip
+from app.core.pipeline_trace import traced
 
 _provider = WeatherForecastProvider(timeout_seconds=get_settings().weather_request_timeout_seconds)
 
@@ -88,10 +90,15 @@ def _forecasts_for(points: set[tuple[float, float]]) -> dict[tuple[float, float]
     never raises (it falls back offline), so every point gets an answer."""
     if not points:
         return {}
-    with ThreadPoolExecutor(max_workers=min(6, len(points)), thread_name_prefix="trip-weather") as pool:
-        return dict(zip(points, pool.map(lambda p: get_forecast(*p), points)))
+    ordered = list(points)
+    # Each worker runs in a copy of the caller's context so request-scoped
+    # context (e.g. a pipeline trace) follows the call into the pool.
+    contexts = [contextvars.copy_context() for _ in ordered]
+    with ThreadPoolExecutor(max_workers=min(6, len(ordered)), thread_name_prefix="trip-weather") as pool:
+        return dict(zip(ordered, pool.map(lambda cp: cp[0].run(get_forecast, *cp[1]), zip(contexts, ordered))))
 
 
+@traced("service", "Weather service: forecast for every booking")
 def trip_weather(db: Session, trip_id: str, traveler_id: str | None = None) -> TripWeatherOut:
     get_trip(db, trip_id, traveler_id)
     nodes = NodeRepository(db).list_for_trip(trip_id)

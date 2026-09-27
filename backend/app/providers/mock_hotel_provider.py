@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from app.providers.base import ProviderFailureError, CancellationPolicy, HotelProvider, ProviderAlternative
+from app.core.pipeline_trace import traced
 
 _CATALOGUE: dict[str, list[ProviderAlternative]] = {
     "Leh": [
@@ -57,6 +58,7 @@ class MockHotelProvider(HotelProvider):
             return []
         return list(_CATALOGUE.get(location, []))
 
+    @traced("provider", "Hotel inventory (simulated catalogue)", detail=lambda r, a, k: {"provider": type(a[0]).__name__, "alternatives": len(r), "dataSource": "simulated"})
     def get_alternatives(self, location: str, check_in: datetime) -> list[ProviderAlternative]:
         self._maybe_fail()
         if self.failure_mode == "empty":

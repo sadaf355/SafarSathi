@@ -7,6 +7,7 @@ from datetime import datetime
 
 from app.engines.refund_engine import RefundEngine
 from app.engines.types import EngineNode, NodeImpact
+from app.core.pipeline_trace import traced
 
 _NON_HEALTHY = {"at-risk", "broken", "cancelled", "delayed"}
 
@@ -24,6 +25,7 @@ class FinancialEngine:
     def __init__(self, refund_engine: RefundEngine | None = None):
         self.refund_engine = refund_engine or RefundEngine()
 
+    @traced("impact_engine", "Financial exposure", detail=lambda r, a, k: {"atRiskValue": round(r.at_risk_value), "potentialRefund": round(r.potential_refund)})
     def summarize(
         self,
         nodes: list[EngineNode],

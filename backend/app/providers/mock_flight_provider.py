@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from app.providers.base import ProviderFailureError, CancellationPolicy, FlightProvider, ProviderAlternative
+from app.core.pipeline_trace import traced
 
 _CATALOGUE: dict[tuple[str, str], list[ProviderAlternative]] = {
     ("DEL", "IXL"): [
@@ -115,6 +116,7 @@ class MockFlightProvider(FlightProvider):
             return []
         return list(_CATALOGUE.get((origin, destination), []))
 
+    @traced("provider", "Flight inventory (simulated catalogue)", detail=lambda r, a, k: {"provider": type(a[0]).__name__, "alternatives": len(r), "dataSource": "simulated"})
     def get_alternatives(
         self, origin: str, destination: str, after: datetime, exclude_confirmation: str | None = None
     ) -> list[ProviderAlternative]:

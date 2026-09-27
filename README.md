@@ -427,3 +427,14 @@ Hotels/places need no key: `PLACES_PROVIDER=nominatim` (default) uses OpenStreet
 **Caching and rate limits.** Live flights/trains are cached for 60 s (and the Live View refreshes at most once a minute), train timetables for 30 min, events for 10 min, hotels/places for 6 h. Only what the traveler searches is requested; place searches are always bounded by a radius (max 20 km) and a result limit. Provider 401/404/429/5xx responses map to friendly messages, and API keys are redacted from logs.
 
 **Limitations.** Coverage is whatever each provider returns: Ticketmaster lists only part of India's events; OpenStreetMap has no prices, availability or reviews; RailRadar's position is the reported current station, not GPS; free Aviationstack plans limit request volume. The existing disruption engine models train disruptions on transfer bookings as a failed train, so live-baseline *delay* simulation is available for flights.
+
+## Live Journey Pipeline (standalone demo page)
+
+A separate page, not part of the main app, that shows a real disruption travelling through the backend as it runs: the traveller's journey on top, the backend stages (API → router → service → database → dependency graph → impact engine → providers → recovery → response) below, plus a source-derived architecture map.
+
+```bash
+cd frontend && npm run build:pipeline          # builds frontend/dist-pipeline
+cd ../backend && SEED_DEMO_DATA=true uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Open `http://<backend-host>:8000/pipeline/` from any laptop on the same network — only a browser is needed. It uses an isolated demo journey (a copy of the seeded Mumbai → Delhi → Leh trip owned by a separate "Demo Traveller"), never a real traveller's trips, and needs no login unless `REQUIRE_AUTHENTICATION=true`. `npm run dev:pipeline` runs it on :5175 against a local backend.

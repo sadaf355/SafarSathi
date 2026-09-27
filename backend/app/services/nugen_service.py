@@ -25,6 +25,7 @@ from dataclasses import dataclass
 
 from app.core.nugen_client import NugenClient
 from app.engines.digital_twin_engine import TwinRun, WeatherScenario, mode_of
+from app.core.pipeline_trace import traced
 
 logger = logging.getLogger("triprescue.nugen")
 
@@ -173,6 +174,7 @@ def heuristic_mitigation(ctx: dict) -> list[str]:
 # ---- Public API -----------------------------------------------------------------
 
 
+@traced("intelligence", "Nugen: explain the weather cascade", detail=lambda r, a, k: {"source": r.source, "model": r.model})
 def explain_weather_cascade(itinerary: list, weather_scenario: WeatherScenario, simulated_impacts: TwinRun) -> Reasoning:
     ctx = build_context(itinerary, weather_scenario, simulated_impacts)
     c = client()
@@ -184,6 +186,7 @@ def explain_weather_cascade(itinerary: list, weather_scenario: WeatherScenario, 
     return Reasoning(text=heuristic_explanation(ctx), source="heuristic")
 
 
+@traced("intelligence", "Nugen: mitigation guidance", detail=lambda r, a, k: {"source": r[1], "tips": len(r[0])})
 def mitigation_guidance(itinerary: list, weather_scenario: WeatherScenario, simulated_impacts: TwinRun) -> tuple[list[str], str]:
     ctx = build_context(itinerary, weather_scenario, simulated_impacts)
     at_risk = {"impacted": [i for i in ctx["impacted"] if i["status"] != "delayed"]}

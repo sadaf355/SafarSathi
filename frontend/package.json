@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:pipeline": "vite --config vite.pipeline.config.ts",
     "build": "vite build",
+    "build:pipeline": "vite build --config vite.pipeline.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",

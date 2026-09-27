@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '@/services/api';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { cn } from '@/lib/utils';
+import { shortText } from '@/lib/concise';
 import { AlertTriangle, Car, CheckCircle2, CloudLightning, Megaphone, Plane, Users } from 'lucide-react';
 
 const ICONS: Record<api.SocialSignalType, typeof Plane> = {
@@ -63,14 +64,14 @@ export function SocialSignalsTicker({ tripId, scenario, intervalMs = 20_000 }: S
         {hasReal && <span className="pill bg-safe-light text-safe" title="Real public posts from Mastodon hashtag timelines for the places on this trip.">Live · Mastodon</span>}
         {hasSimulated && <span className="pill bg-canvas text-ink-muted" title="Synthesized from the weather at each place where no real post was available.">Simulated</span>}
         {scenario && <span className="pill bg-ai-light text-ai">Scenario feed</span>}
-        {feed && <span className="ml-auto text-xs text-ink-muted">{feed.summary}</span>}
+        {feed && signals.length > 0 && <span className="ml-auto text-xs text-ink-muted">{signals.length} report{signals.length === 1 ? '' : 's'}</span>}
       </div>
       {current ? (
         <div aria-live="polite" className="px-5 py-3">
           <SignalRow key={current.id} signal={current} highlight />
           {signals.length > 1 && (
             <ul className="mt-2 space-y-1.5 border-t border-line pt-2">
-              {signals.filter((s) => s !== current).slice(0, 3).map((s) => <li key={s.id}><SignalRow signal={s} /></li>)}
+              {signals.filter((s) => s !== current).slice(0, 2).map((s) => <li key={s.id}><SignalRow signal={s} /></li>)}
             </ul>
           )}
         </div>
@@ -89,12 +90,10 @@ function SignalRow({ signal, highlight }: { signal: api.SocialSignal; highlight?
         <Icon className={highlight ? 'h-4 w-4' : 'h-3.5 w-3.5'} aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className={cn('leading-snug text-ink', highlight ? 'text-sm font-medium' : 'text-[13px] text-ink-soft')}>{signal.text}</p>
+        <p className={cn('truncate leading-snug text-ink', highlight ? 'text-sm font-medium' : 'text-[13px] text-ink-soft')} title={signal.text}>{shortText(signal.text, 70)}</p>
         <p className="mt-0.5 text-[11px] text-ink-muted">
-          {signal.location} · {signal.minutesAgo} min ago · {signal.urgency} ·{' '}
-          {signal.source === 'mastodon' && signal.url
-            ? <a href={signal.url} target="_blank" rel="noopener noreferrer" className="font-medium text-brand hover:underline">Mastodon post ↗</a>
-            : signal.source === 'mastodon' ? 'Mastodon' : 'simulated'}
+          {signal.location} · {signal.minutesAgo}m
+          {signal.source === 'mastodon' && signal.url && <> · <a href={signal.url} target="_blank" rel="noopener noreferrer" className="font-medium text-brand hover:underline">post ↗</a></>}
         </p>
       </div>
     </div>

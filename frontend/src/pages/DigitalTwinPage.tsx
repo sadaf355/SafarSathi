@@ -11,7 +11,7 @@ import { SCENARIO_PRESETS, asStatus } from '@/lib/digitalTwin';
 import { SocialSignalsTicker } from '@/components/digitaltwin/SocialSignalsTicker';
 import { DigitalTwinMapOverlay, type TwinMapPoint } from '@/components/map/DigitalTwinMapOverlay';
 import { formatINR } from '@/lib/journey';
-import { toConciseBullets } from '@/lib/concise';
+import { toConciseLine } from '@/lib/concise';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, BrainCircuit, CheckCircle2, CloudSun, Layers, Loader2, ShieldAlert, ShieldCheck, Sparkles } from 'lucide-react';
 
@@ -95,7 +95,6 @@ export function DigitalTwinPage() {
         title="Weather Digital Twin"
         titleAddon={<span className="pill bg-ai-light text-ai"><Layers className="h-3.5 w-3.5" /> Sandbox</span>}
         subtitle={<span className="text-[17px] sm:text-lg">Stress-test your journey against extreme weather before it happens.</span>}
-        description="The twin is a sandboxed copy of your live itinerary. Nothing changes until you apply a preemptive plan."
         actions={<button onClick={() => navigate('dashboard')} className="btn-ghost"><ArrowLeft className="h-4 w-4" /> Back to Dashboard</button>}
       />
 
@@ -144,7 +143,7 @@ export function DigitalTwinPage() {
                   </span>
                 </div>
                 <div className="mt-3 space-y-1.5">
-                  {toConciseBullets(sim.explanation, 3).map((line) => (
+                  {[toConciseLine(sim.explanation, 140)].filter(Boolean).map((line) => (
                     <div key={line} className="flex items-start gap-2 text-[14px] leading-snug text-ink-soft">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ai" />
                       <span>{line}</span>
@@ -153,7 +152,7 @@ export function DigitalTwinPage() {
                 </div>
                 {sim.mitigation.length > 0 && (
                   <ul className="mt-3 space-y-1.5 border-t border-line/60 pt-3">
-                    {sim.mitigation.slice(0, 2).map((tip) => (
+                    {sim.mitigation.slice(0, 1).map((tip) => (
                       <li key={tip} className="flex gap-2 text-xs font-medium text-ink-soft"><Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />{tip}</li>
                     ))}
                   </ul>
@@ -171,7 +170,7 @@ export function DigitalTwinPage() {
                       ? 'Open-Meteo live conditions (trip dates outside the forecast window)'
                       : 'Offline climatology'}</span>}
                 </div>
-                <p className="mt-1 text-sm text-ink-muted">{weather?.summary ?? 'Checking the forecast for every booking…'}</p>
+                {!weather && <p className="mt-1 text-sm text-ink-muted">Checking the forecast…</p>}
                 {exposed.length > 0 && (
                   <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {exposed.map((n) => (
@@ -180,7 +179,7 @@ export function DigitalTwinPage() {
                           <span className="truncate text-sm font-semibold text-ink">{n.title}</span>
                           <span className={cn('font-mono text-xs font-bold', n.exposure >= 50 ? 'text-danger' : n.exposure >= 25 ? 'text-risk-dark' : 'text-safe')}>{n.exposure}/100</span>
                         </div>
-                        <p className="mt-0.5 text-xs text-ink-muted">{n.conditions ? `${n.conditions.label} · ${Math.round(n.conditions.temperatureC)}°C · ${n.conditions.precipitationProbability}% rain` : 'No forecast for this location'} · WVI {n.vulnerabilityIndex}</p>
+                        <p className="mt-0.5 text-xs text-ink-muted">{n.conditions ? `${Math.round(n.conditions.temperatureC)}°C · ${n.conditions.precipitationProbability}% rain` : 'No forecast'}</p>
                       </li>
                     ))}
                   </ul>
@@ -216,7 +215,7 @@ export function DigitalTwinPage() {
                         {o.recommended && <span className="pill bg-brand text-white">Recommended</span>}
                         <span className="ml-auto font-mono text-xs font-semibold text-ink-muted">score {o.score}</span>
                       </div>
-                      <p className="mt-1 text-[13px] leading-snug text-ink-soft">{o.description}</p>
+                      <p className="mt-1 text-[13px] leading-snug text-ink-soft">{toConciseLine(o.description, 90)}</p>
                       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] sm:grid-cols-4">
                         <div><dt className="text-ink-muted">Cost</dt><dd className="font-semibold text-ink">+{formatINR(o.deltaCost)}</dd></div>
                         <div><dt className="text-ink-muted">Timing</dt><dd className="font-semibold text-ink">{minutes(o.timeImpactMinutes)}</dd></div>

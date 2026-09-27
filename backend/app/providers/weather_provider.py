@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 import httpx
+from app.core.pipeline_trace import traced
 
 
 @dataclass(frozen=True)
@@ -326,6 +327,7 @@ class WeatherForecastProvider:
         hours = [synthetic_hour(lat, lng, start + timedelta(hours=i)) for i in range(7 * 24)]
         return WeatherForecast(lat=lat, lng=lng, source="fallback", current=hours[0], hourly=hours)
 
+    @traced("provider", "Weather forecast (Open-Meteo)", detail=lambda r, a, k: {"provider": "open-meteo", "dataSource": r.source})
     def get_forecast(self, lat: float, lng: float) -> WeatherForecast:
         key = f"{lat:.2f},{lng:.2f}"
         with self._lock:

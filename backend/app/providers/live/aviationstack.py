@@ -15,6 +15,7 @@ import httpx
 
 from app.providers.live.common import LiveProviderError, TTLCache, as_float, as_int, request_json
 from app.schemas.live import GeoPoint, LiveTransportOut, PlaceRef
+from app.core.pipeline_trace import traced
 
 PROVIDER = "aviationstack"
 FLIGHT_NUMBER_RE = re.compile(r"^[A-Z0-9]{2}\d{1,4}[A-Z]?$")
@@ -156,6 +157,7 @@ class AviationstackProvider:
         key = tuple(sorted(params.items()))
         return self._cache.get_or_set(key, lambda: self._fetch(params))
 
+    @traced("provider", "Aviationstack live flight status", detail=lambda r, a, k: {"provider": "aviationstack", "dataSource": "live", "flight": r.number, "status": r.status, "delayMinutes": r.delay_minutes})
     def get_flight(self, flight_number: str, flight_date: str | None = None) -> LiveTransportOut:
         flights = self.search(flight_number=flight_number, limit=10)
         if flight_date:

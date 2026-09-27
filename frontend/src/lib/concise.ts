@@ -27,6 +27,15 @@ export function toConciseBullets(text: string | null | undefined, maxItems = 3):
   return items.slice(0, maxItems);
 }
 
+/** A short label from a longer sentence: drops bracketed asides and anything
+ * after a semicolon, then caps the length. "Heavy waterlogging near BOM roads;
+ * cabs +64 min (reported)." -> "Heavy waterlogging near BOM roads". */
+export function shortText(text: string | null | undefined, maxChars = 60): string {
+  if (!text || !text.trim()) return '';
+  const core = text.split(';')[0].replace(/\s*\([^)]*\)/g, '').replace(/[.\s]+$/, '').replace(/\s+/g, ' ').trim();
+  return core.length <= maxChars ? core : `${core.slice(0, maxChars - 1).trim()}…`;
+}
+
 /** Summarize an explanation into a single concise scannable line. */
 export function toConciseLine(text: string | null | undefined, maxChars = 120): string {
   if (!text || !text.trim()) return '';

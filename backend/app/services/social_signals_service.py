@@ -32,6 +32,7 @@ from app.repositories.node_repository import NodeRepository
 from app.schemas.social_signals import SocialSignalOut, SocialSignalsOut
 from app.services import weather_service
 from app.services.trip_service import get_trip
+from app.core.pipeline_trace import traced
 
 _public_posts = MastodonSignalProvider()
 
@@ -201,6 +202,7 @@ def _posts_for_hubs(hubs: list[dict], now: datetime) -> dict[str, list[PublicPos
     return found
 
 
+@traced("intelligence", "Social signals for the scenario (simulated)", detail=lambda r, a, k: {"signals": len(r.signals)})
 def scenario_signals(trip_id: str, nodes: list, scenario: WeatherScenario) -> SocialSignalsOut:
     """Signals the Digital Twin expects under a what-if weather scenario."""
     conditions = HubConditions(scenario.rainfall_mm_per_hour, scenario.wind_speed_kmh, scenario.visibility_meters, scenario.temperature_celsius)

@@ -7,10 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
-from app.api.routes import assistant, auth, digital_twin, disruptions, health, live, recovery, social_signals, trips, weather
+from app.api.routes import assistant, auth, digital_twin, disruptions, health, live, pipeline, recovery, social_signals, trips, weather
 from app.config import get_settings
 from app.core.logging import configure_logging, init_sentry
 from app.core.middleware import RequestTimingMiddleware
+from app.core.pipeline_middleware import PipelineTraceMiddleware
+from app.core.pipeline_ui import mount_pipeline_ui
 from app.core.rate_limiting import limiter
 from app.database.base import Base
 from app.database.seed import seed_if_empty
@@ -73,6 +75,7 @@ init_sentry(settings.sentry_dsn, settings.environment, settings.sentry_traces_sa
 app = FastAPI(title="TripRescue API", version="0.1.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_middleware(RequestTimingMiddleware)
+app.add_middleware(PipelineTraceMiddleware)  # no-op unless a request carries X-Pipeline-Run
 
 app.add_middleware(
     CORSMiddleware,
@@ -123,3 +126,5 @@ app.include_router(digital_twin.router)
 app.include_router(digital_twin.general_router)
 app.include_router(social_signals.router)
 app.include_router(live.router)
+app.include_router(pipeline.router)
+mount_pipeline_ui(app)  # standalone Live Journey Pipeline page at /pipeline/

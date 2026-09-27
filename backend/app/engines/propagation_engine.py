@@ -43,6 +43,7 @@ from datetime import datetime, timedelta
 
 from app.engines.graph_engine import GraphEngine
 from app.engines.types import EngineEdge, EngineNode, NodeImpact, PropagationResult
+from app.core.pipeline_trace import traced, emit_propagation
 
 UNCERTAINTY_WINDOW_HOURS = 24
 
@@ -273,6 +274,7 @@ def _combine(direct: NodeImpact, cascaded: NodeImpact) -> NodeImpact:
 
 
 class PropagationEngine:
+    @traced("impact_engine", "Impact engine: propagate the disruption through the journey", detail=lambda r, a, k: {"nodesEvaluated": len(r.sequence), "notHealthy": sum(1 for i in r.impacts.values() if i.status != "healthy")}, after=emit_propagation)
     def propagate(
         self,
         nodes: list[EngineNode],

@@ -869,6 +869,103 @@ export async function getTrackedTransport(tripId: string): Promise<TrackedTransp
   return get<TrackedTransport[]>(`/api/live/trips/${tripId}/tracked`);
 }
 
+// ---- Live Journey Pipeline (execution trace of real workflows on the demo journey) ------
+
+export interface PipelineWorkflow {
+  id: string;
+  label: string;
+  mode: 'live' | 'simulation';
+  dataSource: 'demo' | 'live';
+  description: string;
+  available: boolean;
+  note: string | null;
+}
+
+export interface PipelineDemo { trip: Trip; traveller: string; workflows: PipelineWorkflow[] }
+
+export interface PipelineEvent {
+  type: 'stage' | 'node';
+  runId: string;
+  seq: number;
+  timestamp: string;
+  elapsedMs: number;
+  stage: string;
+  status: string;
+  spanId?: string;
+  component?: string;
+  function?: string;
+  file?: string | null;
+  line?: number | null;
+  message?: string | null;
+  durationMs?: number;
+  detail?: Record<string, unknown> | null;
+  error?: string;
+  httpStatus?: number;
+  // node events
+  nodeId?: string;
+  title?: string;
+  category?: string;
+  relation?: 'disrupted' | 'affected' | 'no_dependency_path' | 'buffer_absorbed';
+  reason?: string;
+  causedBy?: string | null;
+  path?: string[];
+  delayMinutes?: number;
+  availableBufferMinutes?: number | null;
+  requiredBufferMinutes?: number | null;
+}
+
+export interface PipelineRunState {
+  runId: string;
+  workflow: string;
+  mode: 'live' | 'simulation';
+  dataSource: 'demo' | 'live';
+  paceMs: number;
+  fault: string | null;
+  done: boolean;
+  error: string | null;
+  startedAt: string;
+  events: PipelineEvent[];
+  result: { workflow: string; mode: string; dataSource: string; response: Record<string, unknown> | null; trip: Trip } | null;
+}
+
+export interface ArchitectureNode {
+  id: string;
+  layer: 'api' | 'service' | 'engine' | 'database' | 'table' | 'provider' | 'external';
+  label: string;
+  module: string | null;
+  file: string | null;
+  description: string;
+  functions: { name: string; line: number }[];
+}
+export interface ArchitectureEdge { id: string; source: string; target: string; kind: string; calls: { caller: string; callee: string; file: string; line: number }[] }
+export interface ArchitectureRoute {
+  id: string; method: string; path: string; router: string; function: string; file: string | null; line: number | null;
+  auth: boolean; requestSchema: string | null; responseSchema: string | null; calls: string[];
+}
+export interface Architecture { nodes: ArchitectureNode[]; edges: ArchitectureEdge[]; routes: ArchitectureRoute[]; layers: string[] }
+
+const PIPELINE_DEMO_MESSAGE = 'The Live Journey Pipeline runs real backend workflows, so it needs the live backend.';
+
+export async function getPipelineDemo(): Promise<PipelineDemo> {
+  if (isDemo()) throw new ApiError(PIPELINE_DEMO_MESSAGE, 503);
+  return get<PipelineDemo>('/api/pipeline/demo');
+}
+
+export async function startPipelineRun(workflow: string, params: Record<string, unknown>, paceMs: number): Promise<PipelineRunState> {
+  if (isDemo()) throw new ApiError(PIPELINE_DEMO_MESSAGE, 503);
+  return post<PipelineRunState>('/api/pipeline/runs', { workflow, params, paceMs });
+}
+
+/** Long-poll: resolves as soon as the backend has new events for the run. */
+export async function getPipelineEvents(runId: string, after: number): Promise<PipelineRunState> {
+  return get<PipelineRunState>(`/api/pipeline/runs/${encodeURIComponent(runId)}/events?after=${after}&wait=8`);
+}
+
+export async function getArchitecture(): Promise<Architecture> {
+  if (isDemo()) throw new ApiError(PIPELINE_DEMO_MESSAGE, 503);
+  return get<Architecture>('/api/pipeline/architecture');
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     await get<{ status: string }>('/api/health');

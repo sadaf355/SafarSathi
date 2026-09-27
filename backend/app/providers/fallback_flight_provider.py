@@ -18,6 +18,7 @@ from typing import Callable
 
 from app.providers.base import CancellationPolicy, FlightProvider, ProviderAlternative, ProviderFailureError
 from app.providers.mock_flight_provider import MockFlightProvider
+from app.core.pipeline_trace import traced
 
 logger = logging.getLogger("triprescue.providers.fallback")
 
@@ -53,6 +54,7 @@ class FallbackFlightProvider(FlightProvider):
     def search(self, origin: str, destination: str, date: str) -> list[ProviderAlternative]:
         return self._live(lambda p: p.search(origin, destination, date)) or self.fallback.search(origin, destination, date)
 
+    @traced("provider", "Live flight search with simulated fallback", detail=lambda r, a, k: {"provider": "FallbackFlightProvider", "alternatives": len(r), "live": sum(1 for o in r if o.source == "live")})
     def get_alternatives(
         self, origin: str, destination: str, after: datetime, exclude_confirmation: str | None = None
     ) -> list[ProviderAlternative]:
