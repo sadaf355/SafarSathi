@@ -502,9 +502,11 @@ def _llm_extract(text: str) -> dict | None:
         return None
 
 
-def extract_disruption(db: Session, text: str, trip_id: str | None = None, traveler_id: str | None = None) -> DisruptionExtractResponse:
+def extract_disruption(
+    db: Session, text: str, trip_id: str | None = None, traveler_id: str | None = None, nodes: list | None = None
+) -> DisruptionExtractResponse:
     result = disruption_extraction.extract(text)
-    source = "heuristic"
+    source = "fallback"
     if result.confidence < 0.5:
         llm = _llm_extract(text)
         if llm:
@@ -516,13 +518,20 @@ def extract_disruption(db: Session, text: str, trip_id: str | None = None, trave
             result.signals.append("language model")
             source = "llm"
 
-    node_id = node_title = None
+    if result.delay_minutes is None and result.type in disruption_extraction.DELAY_TYPES:
+        result.delay_minutes = disruption_extraction.DEFAULT_DELAY_MINUTES
+        result.signals.append(f"no duration stated - assuming {disruption_extraction.DEFAULT_DELAY_MINUTES} min")
+
+    node_id = node_title = how = None
     if trip_id:
         trip = get_trip(db, trip_id, traveler_id)  # raises TripNotFoundError for foreign trips
-        node_id, node_title, how = disruption_extraction.match_node(result, list(trip.nodes))
-        if node_id:
-            result.signals.append(f"matched booking by {how}")
-            result.confidence = round(min(0.99, result.confidence + 0.05), 2)
+        if nodes is None:
+            node_id, node_title, how = disruption_extraction.match_node(result, list(trip.nodes))
+    if nodes is not None:
+        node_id, node_title, how = disruption_extraction.match_mentioned_node(text, nodes)
+    if node_id:
+        result.signals.append(f"matched booking by {how}")
+        result.confidence = round(min(0.99, result.confidence + 0.05), 2)
 
     return DisruptionExtractResponse(
         type=result.type,
@@ -531,6 +540,7 @@ def extract_disruption(db: Session, text: str, trip_id: str | None = None, trave
         gate=result.gate,
         primary_node_id=node_id,
         primary_node_label=node_title,
+        node_id=node_id,
         confidence=result.confidence,
         matched_signals=result.signals,
         summary=disruption_extraction.summarize(result, node_title),

@@ -16,7 +16,6 @@ class TripRepository:
         return list(self.db.scalars(select(Trip)))
 
     def list_active(self) -> list[Trip]:
-        """Trips that still need monitoring: anything not yet fully recovered."""
         return list(self.db.scalars(select(Trip).where(Trip.status != TripStatus.RECOVERED)))
 
     def list_by_traveler(self, traveler_id: str) -> list[Trip]:

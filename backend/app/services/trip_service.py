@@ -172,7 +172,7 @@ def get_trip_out(db: Session, trip_id: str, traveler_id: str | None = None) -> T
         health_score=trip.health_score,
         status=trip.status.value,
         days=_build_days(nodes),
-        resettable=trip.id in seed_module.RESETTABLE_TRIP_IDS,
+        resettable=trip.id in seed_module.DEMO_TRIP_IDS,
     )
 
 

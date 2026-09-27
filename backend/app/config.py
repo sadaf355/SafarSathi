@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # --- Background risk prediction ---
     risk_prediction_enabled: bool = False
     risk_prediction_interval_minutes: int = 15
+    # --- Geocoding (Nominatim) for POST /api/geocode. ---
+    geocoding_request_timeout_seconds: float = 3.0
+    geocoding_contact: str | None = None
 
     # --- Transactional email. Disabled = emails are logged, never sent. ---
     email_notifications_enabled: bool = False

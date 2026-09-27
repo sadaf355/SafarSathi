@@ -136,11 +136,13 @@ def domain_document(samples: list[dict]) -> str:
 
 def upload(samples: list[dict], files: dict[str, Path]) -> None:
     import httpx
+    from app.config import get_settings
 
-    key = os.environ.get("NUGEN_API_KEY")
+    settings = get_settings()
+    key = settings.nugen_api_key or os.environ.get("NUGEN_API_KEY")
     if not key:
         sys.exit("NUGEN_API_KEY is not set - rerun without --upload for a dry run.")
-    base = os.environ.get("NUGEN_BASE_URL", "https://api.nugen.in").rstrip("/")
+    base = (settings.nugen_base_url or os.environ.get("NUGEN_BASE_URL", "https://api.nugen.in")).rstrip("/")
     headers = {"Authorization": f"Bearer {key}"}
     with httpx.Client(timeout=60, headers=headers) as http:
         doc = http.post(f"{base}/api/v3/documents/create",
@@ -164,6 +166,9 @@ def upload(samples: list[dict], files: dict[str, Path]) -> None:
             "benchmark_id": bench_body.get("benchmark_id") or bench_body.get("id"),
             "description": "Travel disruption cascade reasoning for Safar Sathi's weather Digital Twin.",
         })
+        if project.status_code >= 400:
+            print("alignment-projects/create error status:", project.status_code)
+            print("alignment-projects/create response:", project.text)
         project.raise_for_status()
         print("alignment-projects/create ->", project.json())
         print("When alignment completes, deploy it (POST /api/v3/models/{model_id}/deployment) and set NUGEN_MODEL_ID.")

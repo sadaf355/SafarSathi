@@ -21,7 +21,7 @@ def test_anonymous_requests_fall_back_by_default(client):
 def test_anonymous_requests_rejected_when_required(client, auth_required):
     resp = client.get("/api/trips")
     assert resp.status_code == 401
-    assert resp.json()["detail"] == "Authentication required"
+    assert resp.json()["detail"] == "Authentication required."
     assert client.get("/api/trips", headers={"Authorization": "Basic abc"}).status_code == 401
 
 
