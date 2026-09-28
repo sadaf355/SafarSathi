@@ -110,8 +110,21 @@ class Settings(BaseSettings):
         return self.environment.strip().lower() == "development"
 
     @property
+    def is_production(self) -> bool:
+        return self.environment.strip().lower() in ("production", "prod")
+
+    @property
+    def is_sqlite(self) -> bool:
+        return self.resolved_database_url.startswith("sqlite")
+
+    @property
+    def is_postgres(self) -> bool:
+        return self.resolved_database_url.startswith("postgresql")
+
+    @property
     def should_seed_demo_data(self) -> bool:
         return self.is_development if self.seed_demo_data is None else self.seed_demo_data
+
 
     def enforce_secure_auth_secret(self) -> None:
         """Refuses to proceed if this looks like a non-development deployment
