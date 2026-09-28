@@ -190,3 +190,18 @@ If that happens, this is the first thing to check.
 - **Neon connection errors under load**: the free tier caps concurrent connections; the
   backend's pool settings (`DB_POOL_SIZE=5`, `DB_MAX_OVERFLOW=10`) are already
   conservative for this reason — don't raise them on a free-tier Neon database.
+- **Local Docker Compose verification**:
+  ```bash
+  # Test the full stack locally with compose
+  docker compose up --build -d
+  # Verify backend health check
+  curl -s http://localhost:8000/api/health
+  # View backend logs
+  docker compose logs -f backend
+  ```
+- **Checking Migration State**:
+  ```bash
+  # Check current Alembic migration revision
+  docker compose exec backend alembic current
+  ```
+
