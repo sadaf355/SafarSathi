@@ -886,12 +886,10 @@ export interface Architecture { nodes: ArchitectureNode[]; edges: ArchitectureEd
 const PIPELINE_DEMO_MESSAGE = 'The Live Journey Pipeline runs real backend workflows, so it needs the live backend.';
 
 export async function getPipelineDemo(): Promise<PipelineDemo> {
-  if (isDemo()) throw new ApiError(PIPELINE_DEMO_MESSAGE, 503);
   return get<PipelineDemo>('/api/pipeline/demo');
 }
 
 export async function startPipelineRun(workflow: string, params: Record<string, unknown>, paceMs: number): Promise<PipelineRunState> {
-  if (isDemo()) throw new ApiError(PIPELINE_DEMO_MESSAGE, 503);
   return post<PipelineRunState>('/api/pipeline/runs', { workflow, params, paceMs });
 }
 
@@ -901,9 +899,9 @@ export async function getPipelineEvents(runId: string, after: number): Promise<P
 }
 
 export async function getArchitecture(): Promise<Architecture> {
-  if (isDemo()) throw new ApiError(PIPELINE_DEMO_MESSAGE, 503);
   return get<Architecture>('/api/pipeline/architecture');
 }
+
 
 export async function checkHealth(): Promise<boolean> {
   try {
