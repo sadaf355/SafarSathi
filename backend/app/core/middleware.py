@@ -17,11 +17,14 @@ logger = logging.getLogger("safarsathi.http")
 
 
 class RequestTimingMiddleware(BaseHTTPMiddleware):
-    """Injects X-Process-Time-Ms and X-Request-ID headers, makes the request id
-    available to every log line (see app/core/logging.py), and logs one
-    structured access line per request."""
+    """Injects X-Process-Time-Ms and X-Request-ID headers into outgoing responses.
+
+    Makes the unique request correlation ID available to all contextual logging handlers
+    (via `request_id_var`) and logs structured HTTP metrics for each completed request.
+    """
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+
         request_id = request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:12]}"
         token = request_id_var.set(request_id)
         start_time = time.perf_counter()
