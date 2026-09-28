@@ -39,9 +39,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def get_db() -> Generator[Session, None, None]:
+    """FastAPI dependency yielding an isolated SQLAlchemy database session per request.
+
+    Ensures rollback on unhandled exceptions and cleans up session handles
+    in all execution paths.
+    """
     db = SessionLocal()
     try:
         yield db
+
     except Exception:
         # A route/service raised mid-request (e.g. partway through mutating
         # nodes/edges in apply_recovery, before its own db.commit()). Roll
