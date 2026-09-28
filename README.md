@@ -4,9 +4,13 @@
 
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white&labelColor=20232a)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white&labelColor=20232a)
-![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white&labelColor=20232a)
+![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white&labelColor=20232a)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-06B6D4?logo=tailwindcss&logoColor=white&labelColor=20232a)
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white&labelColor=20232a)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white&labelColor=20232a)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?logo=postgresql&logoColor=white&labelColor=20232a)
 ![SQLite](https://img.shields.io/badge/SQLite-SQLAlchemy-003B57?logo=sqlite&logoColor=white&labelColor=20232a)
+
 
 SafarSathi is an explainable travel disruption recovery engine that models multi-leg itineraries as dependency graphs. When one booking is disrupted, SafarSathi propagates the impact across connected bookings, explains exactly what breaks and why, generates feasible recovery plans, ranks them according to traveler priorities, and re-validates the itinerary after recovery.
 
