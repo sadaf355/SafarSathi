@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "preview": "vite preview",
+    "preview:pipeline": "vite preview --config vite.pipeline.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "ci": "npm run typecheck && npm run lint"
   },
