@@ -477,3 +477,10 @@ cd ../backend && SEED_DEMO_DATA=true uvicorn app.main:app --host 0.0.0.0 --port 
 ```
 
 Open `http://<backend-host>:8000/pipeline/` from any laptop on the same network — only a browser is needed. It uses an isolated demo journey (a copy of the seeded Mumbai → Delhi → Leh trip owned by a separate "Demo Traveller"), never a real traveller's trips, and needs no login unless `REQUIRE_AUTHENTICATION=true`. `npm run dev:pipeline` runs it on :5175 against a local backend.
+
+**Troubleshooting the second laptop**
+
+- *Page won't load:* both laptops must be on the same network (guest Wi-Fi often isolates devices), and the backend must run with `--host 0.0.0.0`.
+- *Wrong address:* use the IPv4 address from `ipconfig` / `ip a` for the adapter you are actually connected through — not a virtual one (WSL, Docker, VPN).
+- *Blocked by the firewall:* allow Python (or TCP port 8000) for the network profile in use.
+- *"Not built yet" message at /pipeline/:* run `npm run build:pipeline` in `frontend/`, then reload.
