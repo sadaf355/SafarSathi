@@ -883,7 +883,6 @@ export interface ArchitectureRoute {
 }
 export interface Architecture { nodes: ArchitectureNode[]; edges: ArchitectureEdge[]; routes: ArchitectureRoute[]; layers: string[] }
 
-const PIPELINE_DEMO_MESSAGE = 'The Live Journey Pipeline runs real backend workflows, so it needs the live backend.';
 
 export async function getPipelineDemo(): Promise<PipelineDemo> {
   return get<PipelineDemo>('/api/pipeline/demo');
