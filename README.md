@@ -264,8 +264,8 @@ The codebase is thoroughly verified with comprehensive test suites:
 
 | Suite | Status | Details |
 | :--- | :--- | :--- |
-| **Backend Unit & Engine Tests** | **478 tests, 474 passed, 4 skipped, 0 failed** | `pytest app/tests/ -q`, verified against a full run on 4 Oct 2026 (the 4 skips need a reachable Postgres) |
-| **Frontend Unit & Component Tests** | **225 tests, 225 passed, 0 failed** | `npx vitest run` (51 test files), verified against a full run on 4 Oct 2026. Page tests use fixtures captured from the real backend (`src/test/fixtures`, regenerate with `backend/scripts/make_frontend_fixtures.py`) |
+| **Backend Unit & Engine Tests** | **504 tests, 500 passed, 4 skipped, 0 failed** | `pytest app/tests/ -q`, verified against a full run on 5 Oct 2026 (the 4 skips need a reachable Postgres) |
+| **Frontend Unit & Component Tests** | **244 tests, 244 passed, 0 failed** | `npx vitest run` (55 test files), verified against a full run on 5 Oct 2026. Page tests use fixtures captured from the real backend (`src/test/fixtures`, regenerate with `backend/scripts/make_frontend_fixtures.py`) |
 | **Frontend type check / lint / build** | **Passing** | `npm run typecheck`, `npm run lint`, `npm run build` all clean |
 | **Browser E2E Flow** | **Not shipped** | No Playwright/Cypress suite is present in this archive |
 | **Python syntax** | **Verified** | Backend source compiles with `py_compile` |
